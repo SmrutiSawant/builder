@@ -15,9 +15,21 @@
 			@input="handleMaxItemsChange"
 			:placeholder="__('Enter max number of items')"></InlineInput>
 	</div>
+	<div class="flex items-center justify-between">
+		<InlineInput
+			:label="__('Item Type')"
+			class="w-full"
+			type="select"
+			:options="[
+				{ label: __('Text'), value: 'string' },
+				{ label: __('Image'), value: 'image' },
+			]"
+			:modelValue="itemType"
+			@update:modelValue="handleItemTypeChange"></InlineInput>
+	</div>
 	<div class="flex flex-col gap-3">
 		<InputLabel class="w-[88px] shrink-0">{{ __("Default Items") }}</InputLabel>
-		<ArrayEditor :arr @update:arr="handleArrChange" />
+		<ArrayEditor :arr :itemType @update:arr="handleArrChange" />
 	</div>
 </template>
 
@@ -38,6 +50,15 @@ const props = defineProps<{
 const emit = defineEmits<{
 	(update: "update:options", value: Record<string, any>): void;
 }>();
+
+const itemType = ref<"string" | "image">(props.options?.itemType === "image" ? "image" : "string");
+
+watch(
+	() => props.options?.itemType,
+	(newVal) => {
+		itemType.value = newVal === "image" ? "image" : "string";
+	},
+);
 
 type NumberRef = {
 	value: Ref<number | null, number | null>;
@@ -121,6 +142,7 @@ function useArrayOption(key: string, isNumeric: boolean = false) {
 				minItems: minItems.value,
 				maxItems: maxItems.value,
 				defaultValue: arr.value,
+				itemType: itemType.value,
 			});
 		} else {
 			toast.error(__("Invalid option configuration!"));
@@ -148,10 +170,25 @@ const {
 	reset: resetArr,
 } = useArrayOption("defaultValue") as StringArrayRef;
 
+// switching item type clears the defaults, since an image row holds a file URL
+// and a text row holds arbitrary text
+const handleItemTypeChange = async (val: "string" | "image") => {
+	itemType.value = val;
+	arr.value = [];
+	await nextTick();
+	emit("update:options", {
+		minItems: minItems.value,
+		maxItems: maxItems.value,
+		defaultValue: [],
+		itemType: val,
+	});
+};
+
 const reset = (toProps: boolean = false) => {
 	resetMin(toProps);
 	resetMax(toProps);
 	resetArr(toProps);
+	itemType.value = toProps && props.options?.itemType === "image" ? "image" : "string";
 };
 
 defineExpose({ reset });

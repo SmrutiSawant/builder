@@ -8,8 +8,9 @@ import ObjectInput from "../ObjectInput.vue";
 import useCanvasStore from "@/stores/canvasStore.js";
 import { __ } from "@/translation";
 
+// object still draws its own row; array goes through BasePropertyControl so it
+// picks up the shared label, spacing and dynamic-value trigger
 const componentMap = {
-	array: ArrayInput,
 	object: ObjectInput,
 };
 
@@ -43,6 +44,12 @@ const getPropsMap = (propName: string, propDetails: BlockProps[string]) => {
 				imageFit:
 					propDetails.propOptions?.options?.imageFit ||
 					(propDetails.propOptions?.options?.defaultImageFit as StyleValue),
+			};
+			break;
+		case "array":
+			map = {
+				component: ArrayInput,
+				itemType: propDetails.propOptions?.options?.itemType || "string",
 			};
 			break;
 		case "color":
@@ -125,9 +132,7 @@ const getStandardPropsInputSection = () => {
 	const sections = [];
 	for (const [propKey, propDetails] of Object.entries(standardProps)) {
 		const propType = propDetails.propOptions?.type;
-		const component =
-			(propType === "array" || propType === "object" ? componentMap[propType] : undefined) ||
-			BasePropertyControl;
+		const component = (propType === "object" ? componentMap[propType] : undefined) || BasePropertyControl;
 		const getProps = () => {
 			const props = getPropsMap(propKey, propDetails);
 			return props;

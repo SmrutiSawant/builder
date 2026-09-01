@@ -1,63 +1,46 @@
 <template>
 	<Popover :offset="20" placement="left">
 		<template #target="{ open }">
-			<div class="relative flex w-full gap-2">
-				<div class="flex w-[88px] shrink-0 items-center">
-					<InputLabel class="truncate">
-						{{ label }}
-					</InputLabel>
-				</div>
-				<div class="relative w-full">
-					<Button class="w-full" variant="subtle" icon="lucide-pencil" @click.stop="open()" />
-				</div>
-			</div>
+			<Button class="w-full" variant="subtle" icon="lucide-pencil" @click.stop="open()" />
 		</template>
-		<template #body="{ open, close }">
+		<template #body>
 			<div
 				@click.stop
 				@mousedown.stop
-				class="flex max-h-60 w-60 flex-col gap-3 overflow-auto rounded-lg bg-surface-base p-4 shadow-lg">
+				class="flex max-h-60 flex-col gap-3 overflow-auto rounded-lg bg-surface-base p-4 shadow-lg"
+				:class="itemType === 'image' ? 'w-72' : 'w-60'">
 				<div class="text-sm text-ink-gray-8">{{ __("Array Items:") }}</div>
-				<ArrayEditor :arr @update:arr="updateModelValue" />
+				<ArrayEditor :arr :itemType @update:arr="updateModelValue" />
 			</div>
 		</template>
 	</Popover>
 </template>
 
 <script setup lang="ts">
+import { __ } from "@/translation";
 import { Popover } from "frappe-ui";
-import { ref } from "vue";
+import { computed } from "vue";
 import ArrayEditor from "./ArrayEditor.vue";
-import InputLabel from "./Controls/InputLabel.vue";
 
 const props = defineProps<{
-	label: string;
-	getModelValue: () => string;
-	setModelValue: (value: string) => void;
+	modelValue?: string;
+	itemType?: "string" | "image";
 }>();
 
 const emit = defineEmits({
 	"update:modelValue": (value: string) => true,
 });
 
-const getPassedArray = () => {
+const arr = computed<string[]>(() => {
 	try {
-		const value = props.getModelValue();
-		const parsed = JSON.parse(value);
-		if (Array.isArray(parsed)) {
-			return parsed;
-		}
-		return [];
+		const parsed = JSON.parse(props.modelValue || "[]");
+		return Array.isArray(parsed) ? parsed : [];
 	} catch {
 		return [];
 	}
-};
-
-const arr = ref<any[]>(getPassedArray());
+});
 
 const updateModelValue = (value: string[]) => {
-	arr.value = value;
-	props.setModelValue(JSON.stringify(value));
 	emit("update:modelValue", JSON.stringify(value));
 };
 </script>

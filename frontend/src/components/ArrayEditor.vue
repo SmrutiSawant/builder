@@ -1,7 +1,14 @@
 <template>
 	<div ref="arrayEditor" class="flex flex-col gap-2" @paste="pasteArray">
 		<div v-for="(item, index) in arr" :key="index" class="flex gap-2">
+			<ImageUploadInput
+				v-if="itemType === 'image'"
+				class="w-full"
+				:placeholder="__('Enter image URL or upload one')"
+				:modelValue="item"
+				@update:modelValue="(val: string) => updateItem(index, val)" />
 			<BuilderInput
+				v-else
 				:placeholder="__('Enter value')"
 				:modelValue="item"
 				@input="(val: string) => updateItem(index, val)" />
@@ -19,10 +26,12 @@
 </template>
 <script setup lang="ts">
 import { nextTick, ref } from "vue";
+import ImageUploadInput from "./ImageUploadInput.vue";
 
 const props = defineProps<{
 	arr: Array<string>;
 	description?: string;
+	itemType?: "string" | "image";
 }>();
 
 const emit = defineEmits({
@@ -33,7 +42,8 @@ const addItem = async () => {
 	const newArr = [...props.arr, ""];
 	emit("update:arr", newArr);
 	await nextTick();
-	const inputs = arrayEditor.value?.querySelectorAll("input");
+	// an image row also carries the uploader's hidden file input
+	const inputs = arrayEditor.value?.querySelectorAll("input:not([type='file'])");
 	if (inputs) {
 		const lastInput = inputs[inputs.length - 1];
 		lastInput.focus();
