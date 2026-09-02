@@ -37,7 +37,7 @@ declare type BlockProps = Record<
 
 // an image row in an array prop carries a fit of its own. a row with no fit set
 // stays a bare URL, which is the shape arrays saved before this already hold
-declare type ImageArrayItem = { url: string; fit?: string };
+declare type ImageArrayItem = { url: string; fit?: string; position?: string };
 declare type ArrayPropItem = string | ImageArrayItem;
 
 declare type BlockVisibilityCondition = {

@@ -1,17 +1,20 @@
 <template>
 	<div ref="arrayEditor" class="flex flex-col gap-2" @paste="pasteArray">
 		<div v-for="(item, index) in arr" :key="index" class="flex gap-2">
-			<!-- the fit tabs, not the select: a row keeps its own fit, and there is no
-			     object-position on an array item for the focal-point picker to place -->
+			<!-- passing objectPosition, even empty, is what turns on the fit tabs and
+			     the focal-point picker: the same control an image block gets. no
+			     objectViewBox, so the zoom crop stays out -->
 			<ImageUploadInput
 				v-if="itemType === 'image'"
 				class="w-full"
 				:placeholder="__('Enter image URL or upload one')"
 				:modelValue="itemURL(item)"
 				:imageFit="(itemFit(item) || 'cover') as 'contain' | 'cover' | 'fill'"
-				showFitTabs
+				:objectPosition="itemPosition(item)"
+				:targetRatio="targetRatio"
 				@update:modelValue="(val: string) => updateImageItem(index, { url: val })"
-				@update:imageFit="(val: string) => updateImageItem(index, { fit: val })" />
+				@update:imageFit="(val: string) => updateImageItem(index, { fit: val })"
+				@update:objectPosition="(val: string) => updateImageItem(index, { position: val })" />
 			<BuilderInput
 				v-else
 				:placeholder="__('Enter value')"
@@ -37,6 +40,9 @@ const props = defineProps<{
 	arr: Array<ArrayPropItem>;
 	description?: string;
 	itemType?: "string" | "image";
+	// aspect ratio of whatever the images end up filling, so the focus picker can
+	// frame the part that will actually be visible
+	targetRatio?: number;
 }>();
 
 const emit = defineEmits({
@@ -44,9 +50,10 @@ const emit = defineEmits({
 });
 
 // a text row is the bare value it always was; an image row is either a bare URL
-// or { url, fit } once a fit has been picked for it
+// or { url, fit, position } once either has been picked for it
 const itemURL = (item: ArrayPropItem) => (typeof item === "string" ? item : item?.url || "");
 const itemFit = (item: ArrayPropItem) => (typeof item === "string" ? "" : item?.fit || "");
+const itemPosition = (item: ArrayPropItem) => (typeof item === "string" ? "" : item?.position || "");
 
 const addItem = async () => {
 	const newArr = [...props.arr, ""];
@@ -66,13 +73,23 @@ const updateItem = (index: number, value: string) => {
 	emit("update:arr", newArr);
 };
 
-// a row with no fit of its own stays a bare URL, so an untouched array keeps the
-// shape it was saved in and only the rows actually given a fit grow an object
-const updateImageItem = (index: number, patch: { url?: string; fit?: string }) => {
+// a row that has been given neither a fit nor a focus point stays a bare URL, so
+// an untouched array keeps the shape it was saved in and only the rows actually
+// adjusted grow an object
+const updateImageItem = (index: number, patch: { url?: string; fit?: string; position?: string }) => {
 	const newArr = [...props.arr];
-	const url = patch.url ?? itemURL(newArr[index]);
-	const fit = patch.fit ?? itemFit(newArr[index]);
-	newArr[index] = fit ? { url, fit } : url;
+	const current = newArr[index];
+	const url = patch.url ?? itemURL(current);
+	const fit = patch.fit ?? itemFit(current);
+	const position = patch.position ?? itemPosition(current);
+	if (fit || position) {
+		const image: ImageArrayItem = { url };
+		if (fit) image.fit = fit;
+		if (position) image.position = position;
+		newArr[index] = image;
+	} else {
+		newArr[index] = url;
+	}
 	emit("update:arr", newArr);
 };
 

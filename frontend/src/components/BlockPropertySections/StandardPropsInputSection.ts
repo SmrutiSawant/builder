@@ -50,6 +50,9 @@ const getPropsMap = (propName: string, propDetails: BlockProps[string]) => {
 			map = {
 				component: ArrayInput,
 				itemType: propDetails.propOptions?.options?.itemType || "string",
+				// the images fill the block holding the prop, so its rendered ratio is
+				// what frames the visible part in the focus picker
+				targetRatio: blockController.getSelectedBlockAspectRatio(),
 			};
 			break;
 		case "color":

@@ -10,7 +10,7 @@
 				class="flex max-h-60 flex-col gap-3 overflow-auto rounded-lg bg-surface-base p-4 shadow-lg"
 				:class="itemType === 'image' ? 'w-72' : 'w-60'">
 				<div class="text-sm text-ink-gray-8">{{ __("Array Items:") }}</div>
-				<ArrayEditor :arr :itemType @update:arr="updateModelValue" />
+				<ArrayEditor :arr :itemType :targetRatio @update:arr="updateModelValue" />
 			</div>
 		</template>
 	</Popover>
@@ -25,6 +25,7 @@ import ArrayEditor from "./ArrayEditor.vue";
 const props = defineProps<{
 	modelValue?: string;
 	itemType?: "string" | "image";
+	targetRatio?: number;
 }>();
 
 const emit = defineEmits({
