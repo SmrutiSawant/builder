@@ -107,9 +107,14 @@ const getEventsMap = (propName: string, propDetails: BlockProps[string]) => {
 		case "image":
 			events = {
 				"update:imageURL": (val: string) => blockController.setBlockProp(propName, { value: val }),
+				// setBlockProp merges one level deep, so propOptions is replaced wholesale
+				// and type / isRequired / dependencies have to be carried over by hand
 				"update:imageFit": (val: StyleValue) =>
 					blockController.setBlockProp(propName, {
-						propOptions: { options: { ...propDetails.propOptions?.options, imageFit: val } },
+						propOptions: {
+							...propDetails.propOptions,
+							options: { ...propDetails.propOptions?.options, imageFit: val },
+						},
 					}),
 			};
 			break;

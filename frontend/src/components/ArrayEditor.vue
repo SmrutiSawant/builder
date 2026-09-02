@@ -1,16 +1,21 @@
 <template>
 	<div ref="arrayEditor" class="flex flex-col gap-2" @paste="pasteArray">
 		<div v-for="(item, index) in arr" :key="index" class="flex gap-2">
+			<!-- the fit tabs, not the select: a row keeps its own fit, and there is no
+			     object-position on an array item for the focal-point picker to place -->
 			<ImageUploadInput
 				v-if="itemType === 'image'"
 				class="w-full"
 				:placeholder="__('Enter image URL or upload one')"
-				:modelValue="item"
-				@update:modelValue="(val: string) => updateItem(index, val)" />
+				:modelValue="itemURL(item)"
+				:imageFit="(itemFit(item) || 'cover') as 'contain' | 'cover' | 'fill'"
+				showFitTabs
+				@update:modelValue="(val: string) => updateImageItem(index, { url: val })"
+				@update:imageFit="(val: string) => updateImageItem(index, { fit: val })" />
 			<BuilderInput
 				v-else
 				:placeholder="__('Enter value')"
-				:modelValue="item"
+				:modelValue="itemURL(item)"
 				@input="(val: string) => updateItem(index, val)" />
 			<Button
 				class="flex-shrink-0 text-xs"
@@ -29,14 +34,19 @@ import { nextTick, ref } from "vue";
 import ImageUploadInput from "./ImageUploadInput.vue";
 
 const props = defineProps<{
-	arr: Array<string>;
+	arr: Array<ArrayPropItem>;
 	description?: string;
 	itemType?: "string" | "image";
 }>();
 
 const emit = defineEmits({
-	"update:arr": (arr: Array<string>) => true,
+	"update:arr": (arr: Array<ArrayPropItem>) => true,
 });
+
+// a text row is the bare value it always was; an image row is either a bare URL
+// or { url, fit } once a fit has been picked for it
+const itemURL = (item: ArrayPropItem) => (typeof item === "string" ? item : item?.url || "");
+const itemFit = (item: ArrayPropItem) => (typeof item === "string" ? "" : item?.fit || "");
 
 const addItem = async () => {
 	const newArr = [...props.arr, ""];
@@ -56,6 +66,16 @@ const updateItem = (index: number, value: string) => {
 	emit("update:arr", newArr);
 };
 
+// a row with no fit of its own stays a bare URL, so an untouched array keeps the
+// shape it was saved in and only the rows actually given a fit grow an object
+const updateImageItem = (index: number, patch: { url?: string; fit?: string }) => {
+	const newArr = [...props.arr];
+	const url = patch.url ?? itemURL(newArr[index]);
+	const fit = patch.fit ?? itemFit(newArr[index]);
+	newArr[index] = fit ? { url, fit } : url;
+	emit("update:arr", newArr);
+};
+
 const deleteItem = (index: number) => {
 	const newArr = [...props.arr];
 	newArr.splice(index, 1);
@@ -65,7 +85,7 @@ const deleteItem = (index: number) => {
 const arrayEditor = ref<HTMLElement | null>(null);
 
 const pasteArray = (e: ClipboardEvent) => {
-	const passedArr = props.arr.filter((item) => item.trim() !== "");
+	const passedArr = props.arr.filter((item) => itemURL(item).trim() !== "");
 	const text = e.clipboardData?.getData("text/plain");
 	if (text) {
 		e.preventDefault();

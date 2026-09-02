@@ -67,7 +67,7 @@ type NumberRef = {
 };
 
 type StringArrayRef = {
-	value: Ref<string[], string[]>;
+	value: Ref<ArrayPropItem[], ArrayPropItem[]>;
 	handleChange: (val: any[]) => Promise<void>;
 	reset: (toProps?: boolean) => void;
 };
@@ -98,7 +98,7 @@ function performValidation() {
 
 function useArrayOption(key: string, isNumeric: boolean = false) {
 	const numericValue = ref(toNumberOrNull(props.options?.[key]));
-	const arrayValue = ref<string[]>(Array.isArray(props.options?.[key]) ? props.options?.[key] : []);
+	const arrayValue = ref<ArrayPropItem[]>(Array.isArray(props.options?.[key]) ? props.options?.[key] : []);
 
 	watch(
 		() => props.options?.[key],

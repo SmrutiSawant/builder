@@ -31,7 +31,7 @@ const emit = defineEmits({
 	"update:modelValue": (value: string) => true,
 });
 
-const arr = computed<string[]>(() => {
+const arr = computed<ArrayPropItem[]>(() => {
 	try {
 		const parsed = JSON.parse(props.modelValue || "[]");
 		return Array.isArray(parsed) ? parsed : [];
@@ -40,7 +40,7 @@ const arr = computed<string[]>(() => {
 	}
 });
 
-const updateModelValue = (value: string[]) => {
+const updateModelValue = (value: ArrayPropItem[]) => {
 	emit("update:modelValue", JSON.stringify(value));
 };
 </script>

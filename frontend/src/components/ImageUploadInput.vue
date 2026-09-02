@@ -45,10 +45,10 @@
 				</template>
 				<template #body>
 					<div class="w-64 rounded-lg bg-surface-base p-3 shadow-lg">
-						<div v-if="objectPosition !== undefined" class="mb-3 flex items-center">
+						<div v-if="objectPosition !== undefined || showFitTabs" class="mb-3 flex items-center">
 							<span class="text-sm font-semibold text-ink-gray-9">{{ __("Image") }}</span>
 						</div>
-						<div v-if="objectPosition !== undefined" class="mb-3">
+						<div v-if="objectPosition !== undefined || showFitTabs" class="mb-3">
 							<TabButtons
 								:class="STRETCH_TABS"
 								:options="fitOptions"
@@ -104,7 +104,7 @@
 								@click="resetFocus" />
 						</div>
 						<InlineInput
-							v-if="objectPosition === undefined"
+							v-if="objectPosition === undefined && !showFitTabs"
 							:label="__('Image Fit')"
 							class="mt-4"
 							:modelValue="imageFit"
@@ -141,6 +141,9 @@ const props = withDefaults(
 		labelPosition?: "top" | "left";
 		placeholder?: string;
 		imageFit?: "contain" | "cover" | "fill" | "none";
+		// the fit tabs without the focal-point picker, for callers that keep a fit
+		// per image but have no object-position to place it against
+		showFitTabs?: boolean;
 		// pass them (even empty) to get the focus-point picker / zoom crop for cover fits
 		objectPosition?: string;
 		objectViewBox?: string;
