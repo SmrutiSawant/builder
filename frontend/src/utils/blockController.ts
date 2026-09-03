@@ -3,6 +3,7 @@ import useCanvasStore from "@/stores/canvasStore";
 import getBlockTemplate from "./blockTemplate";
 import componentController from "./componentController";
 import type { SpacingType } from "./cssUtils";
+import { getBlockCopy } from "./helpers";
 
 const canvasStore = useCanvasStore();
 
@@ -342,7 +343,57 @@ const blockController = {
 		const block = blockController.getFirstSelectedBlock();
 		if (!block) return;
 		block.setBlockProps(props);
+		for (const [propKey, propDetails] of Object.entries(props || {})) {
+			if (propDetails?.propOptions?.type === "array" && propDetails.value !== undefined) {
+				syncArrayPropChildBlocks(block, propKey, propDetails.value);
+			}
+		}
 	},
 };
+
+function syncArrayPropChildBlocks(block: Block, propKey: string, rawValue: any) {
+	let arrayValue: any[] = [];
+	if (Array.isArray(rawValue)) {
+		arrayValue = rawValue;
+	} else if (typeof rawValue === "string") {
+		try {
+			const parsed = JSON.parse(rawValue);
+			if (Array.isArray(parsed)) arrayValue = parsed;
+		} catch {
+			return;
+		}
+	} else {
+		return;
+	}
+
+	let container: Block | null = null;
+	if (block.children && block.children.length > 0) {
+		const trackChild = block.children.find((c) => c.children && c.children.length > 0);
+		if (trackChild) {
+			container = trackChild;
+		} else {
+			container = block;
+		}
+	} else if (block.canHaveChildren()) {
+		container = block;
+	}
+
+	if (!container || !container.children || container.children.length === 0) return;
+
+	const targetCount = arrayValue.length;
+	const templateSlide = container.children[0];
+
+	while (container.children.length < targetCount) {
+		const slideIndex = container.children.length + 1;
+		const newSlide = getBlockCopy(templateSlide);
+		newSlide.blockName = `Slide ${slideIndex}`;
+		container.addChild(newSlide, null, false);
+	}
+
+	while (container.children.length > targetCount && container.children.length > 1) {
+		const lastChild = container.children[container.children.length - 1];
+		container.removeChild(lastChild);
+	}
+}
 
 export default blockController;
