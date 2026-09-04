@@ -468,5 +468,41 @@ watch(
 	{ immediate: true },
 );
 
+// A block can sit inside a container that scrolls within the page — a carousel
+// track, say — where selecting it from the Layers panel leaves it out of view.
+// scrollIntoView only pans the canvas, so nothing reveals it inside its own
+// scroller. Walk up to the canvas and nudge each scroller by the smallest amount
+// that brings the block into view; already-visible blocks are left alone.
+watch(selectedInCanvas, async (selected) => {
+	if (!selected || props.preview) return;
+	await nextTick();
+	const element = target.value as HTMLElement | null;
+	if (!element) return;
+	// rects are in screen pixels, scrollLeft/Top are in unscaled layout pixels
+	const scale = canvasProps?.scale || 1;
+	let parent = element.parentElement;
+	while (parent && !parent.hasAttribute("data-builder-canvas")) {
+		const style = getComputedStyle(parent);
+		const elementRect = element.getBoundingClientRect();
+		const parentRect = parent.getBoundingClientRect();
+
+		if (/(auto|scroll)/.test(style.overflowX) && parent.scrollWidth > parent.clientWidth) {
+			const hiddenLeft = parentRect.left - elementRect.left;
+			const hiddenRight = elementRect.right - parentRect.right;
+			if (hiddenLeft > 0) parent.scrollLeft -= hiddenLeft / scale;
+			else if (hiddenRight > 0) parent.scrollLeft += hiddenRight / scale;
+		}
+
+		if (/(auto|scroll)/.test(style.overflowY) && parent.scrollHeight > parent.clientHeight) {
+			const hiddenTop = parentRect.top - elementRect.top;
+			const hiddenBottom = elementRect.bottom - parentRect.bottom;
+			if (hiddenTop > 0) parent.scrollTop -= hiddenTop / scale;
+			else if (hiddenBottom > 0) parent.scrollTop += hiddenBottom / scale;
+		}
+
+		parent = parent.parentElement;
+	}
+});
+
 // Note: All the block event listeners are delegated to parent for better scalability
 </script>
