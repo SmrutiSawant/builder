@@ -434,7 +434,9 @@ watch(
 		});
 		onCleanup(cleanup);
 	},
-	{ immediate: true },
+	// post, so a script that paints its own children (a gallery filling slides, say)
+	// sees the elements this prop change just rendered instead of the previous ones
+	{ immediate: true, flush: "post" },
 );
 
 const isEditable = computed(() => {

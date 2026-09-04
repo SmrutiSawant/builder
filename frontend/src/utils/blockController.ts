@@ -343,9 +343,12 @@ const blockController = {
 		const block = blockController.getFirstSelectedBlock();
 		if (!block) return;
 		block.setBlockProps(props);
+		// props are stored on the props root, and getBlockProps walks up to it, so the
+		// panel is shown for descendants too — the child blocks belong to that root
+		const propsRoot = block.getPropsRoot() || block;
 		for (const [propKey, propDetails] of Object.entries(props || {})) {
 			if (propDetails?.propOptions?.type === "array" && propDetails.value !== undefined) {
-				syncArrayPropChildBlocks(block, propKey, propDetails.value);
+				syncArrayPropChildBlocks(propsRoot, propKey, propDetails.value);
 			}
 		}
 	},
