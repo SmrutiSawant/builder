@@ -354,6 +354,46 @@ const blockController = {
 	},
 };
 
+// A container marked with this attribute keeps exactly one child per entry in the
+// named array prop, so one array can drive more than one list — a carousel's
+// slides and its pagination dots, for instance.
+const ARRAY_ITEMS_ATTRIBUTE = "data-array-items";
+
+function collectArrayItemContainers(block: Block, propKey: string, found: Block[] = []): Block[] {
+	if (block.getAttributes()[ARRAY_ITEMS_ATTRIBUTE] === propKey) {
+		found.push(block);
+	}
+	(block.children || []).forEach((child) => collectArrayItemContainers(child, propKey, found));
+	return found;
+}
+
+// Templates written before the marker existed still get their first child-bearing
+// container synced, which is where the items live.
+function firstChildBearingContainer(block: Block): Block | null {
+	if (block.children && block.children.length > 0) {
+		return block.children.find((c) => c.children && c.children.length > 0) || block;
+	}
+	return block.canHaveChildren() ? block : null;
+}
+
+function syncContainerToCount(container: Block, targetCount: number) {
+	if (!container.children || container.children.length === 0) return;
+
+	const templateChild = container.children[0];
+	// so copies of "Slide 1" are named "Slide 2", not "Slide 1 2"
+	const baseName = (templateChild.blockName || "Item").replace(/\s*\d+$/, "");
+
+	while (container.children.length < targetCount) {
+		const newChild = getBlockCopy(templateChild);
+		newChild.blockName = `${baseName} ${container.children.length + 1}`;
+		container.addChild(newChild, null, false);
+	}
+
+	while (container.children.length > targetCount && container.children.length > 1) {
+		container.removeChild(container.children[container.children.length - 1]);
+	}
+}
+
 function syncArrayPropChildBlocks(block: Block, propKey: string, rawValue: any) {
 	let arrayValue: any[] = [];
 	if (Array.isArray(rawValue)) {
@@ -369,34 +409,9 @@ function syncArrayPropChildBlocks(block: Block, propKey: string, rawValue: any) 
 		return;
 	}
 
-	let container: Block | null = null;
-	if (block.children && block.children.length > 0) {
-		const trackChild = block.children.find((c) => c.children && c.children.length > 0);
-		if (trackChild) {
-			container = trackChild;
-		} else {
-			container = block;
-		}
-	} else if (block.canHaveChildren()) {
-		container = block;
-	}
-
-	if (!container || !container.children || container.children.length === 0) return;
-
-	const targetCount = arrayValue.length;
-	const templateSlide = container.children[0];
-
-	while (container.children.length < targetCount) {
-		const slideIndex = container.children.length + 1;
-		const newSlide = getBlockCopy(templateSlide);
-		newSlide.blockName = `Slide ${slideIndex}`;
-		container.addChild(newSlide, null, false);
-	}
-
-	while (container.children.length > targetCount && container.children.length > 1) {
-		const lastChild = container.children[container.children.length - 1];
-		container.removeChild(lastChild);
-	}
+	const marked = collectArrayItemContainers(block, propKey);
+	const containers = marked.length ? marked : [firstChildBearingContainer(block)];
+	containers.forEach((container) => container && syncContainerToCount(container, arrayValue.length));
 }
 
 export default blockController;
