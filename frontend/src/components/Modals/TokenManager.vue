@@ -222,6 +222,7 @@
 													variant="ghost"
 													size="xs"
 													:icon="copiedId === row.id ? 'lucide-check' : 'lucide-copy'"
+													:label="__('Copy var(--{0})', [row.name])"
 													:class="{ '!text-ink-green-6': copiedId === row.id }"
 													@mousedown.stop
 													@click.stop="copyHandle(row)" />

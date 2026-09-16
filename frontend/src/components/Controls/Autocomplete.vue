@@ -46,9 +46,10 @@
 						v-if="hasValue"
 						class="mr-2 flex-shrink-0 cursor-pointer text-ink-gray-4 hover:text-ink-gray-5"
 						tabindex="-1"
+						:aria-label="__('Clear')"
 						@click.stop="clearSelection"
 						@mousedown.prevent>
-						<span class="lucide-x size-3.5" />
+						<span class="lucide-x size-3.5" aria-hidden="true" />
 					</button>
 				</div>
 			</div>

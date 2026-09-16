@@ -5,11 +5,13 @@
 		<button
 			type="button"
 			class="circle-cursor duration-250 -mb-[1.5px] flex h-3 w-5 items-center justify-center rounded text-ink-gray-5 transition-all ease-in-out active:-translate-y-[2px] active:text-ink-gray-9"
+			:aria-label="__('Increment')"
 			@mousedown.prevent.stop="startHold('increment')"
 			@mouseup="stopHold"
 			@mouseleave="stopHold"
 			tabindex="-1">
 			<svg
+				aria-hidden="true"
 				xmlns="http://www.w3.org/2000/svg"
 				width="12"
 				height="12"
@@ -25,11 +27,13 @@
 		<button
 			type="button"
 			class="circle-cursor duration-250 -mt-[1.5px] flex h-3 w-5 items-center justify-center rounded text-ink-gray-5 transition-all ease-in-out active:translate-y-[2px] active:text-ink-gray-9"
+			:aria-label="__('Decrement')"
 			@mousedown.prevent.stop="startHold('decrement')"
 			@mouseup="stopHold"
 			@mouseleave="stopHold"
 			tabindex="-1">
 			<svg
+				aria-hidden="true"
 				xmlns="http://www.w3.org/2000/svg"
 				width="12"
 				height="12"

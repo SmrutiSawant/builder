@@ -39,6 +39,7 @@
 					<PageActionsDropdown :page="page" size="xs" placement="right">
 						<Button
 							icon="lucide-more-horizontal"
+							:label="__('Page actions')"
 							size="sm"
 							variant="ghost"
 							class="bg-surface-elevation-1 !text-ink-gray-5 hover:!text-ink-gray-9"

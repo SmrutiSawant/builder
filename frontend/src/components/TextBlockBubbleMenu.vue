@@ -64,30 +64,34 @@
 				v-show="!block.isHeader()"
 				@click="editor?.chain().focus().toggleBold().run()"
 				class="rounded px-2 py-1 hover:bg-surface-gray-2"
-				:class="{ 'bg-surface-gray-3': editor.isActive('bold') }">
+				:class="{ 'bg-surface-gray-3': editor.isActive('bold') }"
+				:aria-label="__('Bold')">
 				<span class="lucide-bold h-3 w-3" aria-hidden="true" />
 			</button>
 			<button
 				v-show="!block.isHeader()"
 				@click="editor?.chain().focus().toggleItalic().run()"
 				class="rounded px-2 py-1 hover:bg-surface-gray-2"
-				:class="{ 'bg-surface-gray-3': editor.isActive('italic') }">
+				:class="{ 'bg-surface-gray-3': editor.isActive('italic') }"
+				:aria-label="__('Italic')">
 				<span class="lucide-italic h-3 w-3" aria-hidden="true" />
 			</button>
 			<button
 				v-show="!block.isHeader()"
 				@click="editor?.chain().focus().toggleStrike().run()"
 				class="rounded px-2 py-1 hover:bg-surface-gray-2"
-				:class="{ 'bg-surface-gray-3': editor.isActive('strike') }">
-				<span class="lucide-strikethrough size-4" />
+				:class="{ 'bg-surface-gray-3': editor.isActive('strike') }"
+				:aria-label="__('Strikethrough')">
+				<span class="lucide-strikethrough size-4" aria-hidden="true" />
 			</button>
 
 			<button
 				v-show="!block.isHeader()"
 				@click="editor?.chain().focus().toggleUnderline().run()"
 				class="rounded px-2 py-1 hover:bg-surface-gray-2"
-				:class="{ 'bg-surface-gray-3': editor.isActive('underline') }">
-				<span class="lucide-underline size-4" />
+				:class="{ 'bg-surface-gray-3': editor.isActive('underline') }"
+				:aria-label="__('Underline')">
+				<span class="lucide-underline size-4" aria-hidden="true" />
 			</button>
 
 			<button
@@ -99,7 +103,8 @@
 					}
 				"
 				class="rounded px-2 py-1 hover:bg-surface-gray-2"
-				:class="{ 'bg-surface-gray-3': editor.isActive('link') }">
+				:class="{ 'bg-surface-gray-3': editor.isActive('link') }"
+				:aria-label="__('Link')">
 				<span class="lucide-link h-3 w-3" aria-hidden="true" />
 			</button>
 			<div v-show="!block.isHeader()">
@@ -111,7 +116,10 @@
 					:portal-to="menuElement"
 					placement="top">
 					<template #target>
-						<button v-show="!block.isHeader()" class="rounded px-2 py-1 hover:bg-surface-gray-2">
+						<button
+							v-show="!block.isHeader()"
+							class="rounded px-2 py-1 hover:bg-surface-gray-2"
+							:aria-label="__('Text color')">
 							<div class="p-1">
 								<div
 									class="h-4 w-4 rounded shadow-sm"

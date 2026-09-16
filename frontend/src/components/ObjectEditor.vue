@@ -25,6 +25,7 @@
 				class="flex-shrink-0 text-xs"
 				variant="subtle"
 				icon="lucide-x"
+				:label="__('Remove')"
 				@click="deleteObjectKey(key as string)"></Button>
 		</div>
 		<Button variant="outline" :label="__('Add')" @click="addObjectKey"></Button>

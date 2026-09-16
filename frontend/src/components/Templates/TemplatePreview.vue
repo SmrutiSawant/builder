@@ -12,6 +12,7 @@
 					v-for="breakpoint in breakpoints"
 					:key="breakpoint.device"
 					:icon="breakpoint.icon"
+					:label="breakpoint.label"
 					variant="ghost"
 					:class="{ '!bg-surface-gray-2': activeBreakpoint === breakpoint.device }"
 					@click="activeBreakpoint = breakpoint.device" />
@@ -53,9 +54,9 @@ const loading = ref(true);
 // (the desktop fit) so the frames stay proportionate across breakpoints
 const DESKTOP_WIDTH = 1440;
 const breakpoints = [
-	{ device: "desktop", icon: "lucide-monitor", width: DESKTOP_WIDTH },
-	{ device: "tablet", icon: "lucide-tablet", width: 800 },
-	{ device: "mobile", icon: "lucide-smartphone", width: 420 },
+	{ device: "desktop", label: __("Desktop"), icon: "lucide-monitor", width: DESKTOP_WIDTH },
+	{ device: "tablet", label: __("Tablet"), icon: "lucide-tablet", width: 800 },
+	{ device: "mobile", label: __("Mobile"), icon: "lucide-smartphone", width: 420 },
 ];
 const activeBreakpoint = ref("desktop");
 const viewportWidth = computed(

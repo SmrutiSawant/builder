@@ -68,6 +68,7 @@
 							</span>
 							<Button
 								icon="lucide-x"
+								:label="__('Remove shadow')"
 								variant="ghost"
 								size="sm"
 								class="!size-5 !text-ink-gray-4"

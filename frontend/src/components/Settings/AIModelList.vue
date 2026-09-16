@@ -61,6 +61,7 @@
 						size="sm"
 						variant="ghost"
 						icon="lucide-trash-2"
+						label="Remove model"
 						class="opacity-0 group-hover/row:opacity-100"
 						@click="remove(row)" />
 				</div>

@@ -9,6 +9,7 @@
 				<TemplateGallery class="min-h-0 flex-1" />
 				<Button
 					icon="lucide-x"
+					:label="__('Close')"
 					variant="subtle"
 					class="absolute right-5 top-5"
 					@click="showTemplatesDialog = false"></Button>

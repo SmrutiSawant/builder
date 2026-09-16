@@ -25,12 +25,14 @@
 					variant="ghost"
 					size="sm"
 					icon="lucide-chevron-left"
+					label="Previous step"
 					:disabled="stepIndex === 0 || !interactive || disabled"
 					@click="goBack" />
 				<Button
 					variant="ghost"
 					size="sm"
 					icon="lucide-chevron-right"
+					label="Next step"
 					:disabled="isLastStep || !interactive || disabled"
 					@click="goNext" />
 			</div>

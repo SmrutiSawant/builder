@@ -26,6 +26,7 @@
 			<Button
 				icon="lucide-x"
 				variant="subtle"
+				:label="__('Close')"
 				@click="$emit('close')"
 				class="absolute right-5 top-5"></Button>
 			<KeepAlive v-if="settingsLoaded">

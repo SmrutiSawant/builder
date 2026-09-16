@@ -30,6 +30,7 @@
 					<Button
 						variant="ghost"
 						:icon="isDark ? 'lucide-sun' : 'lucide-moon'"
+						:label="__('Toggle Dark Mode')"
 						class="h-8 w-8 cursor-pointer text-ink-gray-8 outline-none"
 						@click="() => transitionTheme(toggleDark)" />
 				</Tooltip>

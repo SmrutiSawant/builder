@@ -24,6 +24,7 @@
 					v-if="node.hasChildren"
 					variant="ghost"
 					class="!text-ink-gray-5"
+					:label="node.expanded ? __('Collapse') : __('Expand')"
 					@click.stop="onToggle(node)"
 					:icon="node.expanded ? 'lucide-chevron-down' : 'lucide-chevron-right'"></Button>
 				<span v-else class="size-6 w-7 shrink-0"></span>
@@ -59,6 +60,7 @@
 				<PageActionsDropdown v-if="node.page" :page="node.page" size="xs" placement="right">
 					<Button
 						icon="lucide-more-horizontal"
+						:label="__('Page actions')"
 						size="sm"
 						variant="ghost"
 						class="bg-surface-base !text-ink-gray-5 hover:!text-ink-gray-9"

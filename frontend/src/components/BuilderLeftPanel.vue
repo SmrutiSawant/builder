@@ -12,6 +12,7 @@
 			<Tooltip v-for="tab of tabs" :key="tab.name" :text="tabLabel(tab)" placement="right">
 				<Button
 					:icon="tab.icon"
+					:label="tabLabel(tab)"
 					size="md"
 					:class="{ '!text-ink-gray-6': !isActive(tab) }"
 					:variant="isActive(tab) ? 'subtle' : 'ghost'"

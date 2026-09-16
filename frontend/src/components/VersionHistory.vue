@@ -3,7 +3,7 @@
 		<!-- header -->
 		<div class="flex items-center justify-between border-b border-outline-gray-2 px-3 py-2.5">
 			<div class="flex items-center gap-1.5">
-				<Button variant="ghost" size="sm" icon="lucide-chevron-left" @click="close" />
+				<Button variant="ghost" size="sm" icon="lucide-chevron-left" :label="__('Back')" @click="close" />
 				<span class="text-base font-medium text-ink-gray-8">{{ __("Version History") }}</span>
 			</div>
 			<Button
@@ -11,6 +11,7 @@
 				size="sm"
 				icon="lucide-bookmark-plus"
 				:loading="saving"
+				:label="__('Save current version')"
 				:tooltip="__('Save current version')"
 				@click="toggleSaveRow" />
 		</div>
@@ -83,6 +84,7 @@
 						variant="subtle"
 						size="sm"
 						icon="lucide-rotate-ccw"
+						:label="__('Restore this version as your draft')"
 						:tooltip="__('Restore this version as your draft')"
 						:loading="restoringName === PUBLISHED_VERSION"
 						@click.stop="restorePublished" />
@@ -120,6 +122,7 @@
 						variant="subtle"
 						size="sm"
 						icon="lucide-rotate-ccw"
+						:label="__('Restore this version as your draft')"
 						:tooltip="__('Restore this version as your draft')"
 						:loading="restoringName === snapshot.name"
 						@click.stop="restore(snapshot)" />

@@ -8,15 +8,16 @@
 			<Button
 				:variant="builderStore.showVersionHistory ? 'subtle' : 'ghost'"
 				icon="lucide-history"
+				:label="__('Version History')"
 				:disabled="builderStore.readOnlyMode"
 				@click="toggleVersionHistory"></Button>
 		</Tooltip>
 		<Tooltip :text="__('Settings')" :hoverDelay="0.6" arrow-class="mb-3">
-			<Button variant="ghost" @click="openSettings" :icon="SettingsGearIcon"></Button>
+			<Button variant="ghost" :label="__('Settings')" @click="openSettings" :icon="SettingsGearIcon"></Button>
 		</Tooltip>
 		<router-link :to="{ name: 'preview', params: { pageId: pageStore.selectedPage } }" :title="__('Preview')">
 			<Tooltip :text="__('Preview')" :hoverDelay="0.6" arrow-class="mb-3">
-				<Button variant="ghost" :icon="PlayIcon"></Button>
+				<Button variant="ghost" :label="__('Preview')" :icon="PlayIcon"></Button>
 			</Tooltip>
 		</router-link>
 	</div>

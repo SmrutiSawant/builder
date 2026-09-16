@@ -58,6 +58,7 @@
 							size="sm"
 							icon="lucide-info"
 							disabled
+							:label="__('System generated folder cannot be edited or deleted')"
 							:tooltip="__('System generated folder cannot be edited or deleted')"
 							class="cursor-pointer" />
 						<Dropdown
@@ -78,7 +79,12 @@
 								},
 							]">
 							<template v-slot="{ open }">
-								<Button icon="lucide-more-horizontal" size="sm" variant="ghost" @click="open" />
+								<Button
+									icon="lucide-more-horizontal"
+									:label="__('Folder actions')"
+									size="sm"
+									variant="ghost"
+									@click="open" />
 							</template>
 						</Dropdown>
 					</template>

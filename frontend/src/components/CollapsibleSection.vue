@@ -6,6 +6,7 @@
 			</h3>
 			<Button
 				:icon="collapsed ? 'lucide-chevron-right' : 'lucide-chevron-down'"
+				:label="collapsed ? __('Expand') : __('Collapse')"
 				:variant="'ghost'"
 				size="sm"
 				@click="toggleCollapsed"></Button>

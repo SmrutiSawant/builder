@@ -24,6 +24,7 @@
 			<button
 				type="button"
 				class="absolute right-1 top-1 text-ink-gray-7 hover:text-ink-gray-9"
+				:aria-label="__('Clear')"
 				@click="$emit('clear')">
 				<span class="lucide-x h-3 w-3" aria-hidden="true" />
 			</button>
@@ -41,6 +42,7 @@
 				<button
 					type="button"
 					class="invisible absolute inset-0 flex items-center justify-center text-ink-gray-7 hover:text-ink-gray-9 group-hover/variant:visible"
+					:aria-label="__('Clear')"
 					@click="$emit('clear')">
 					<span class="lucide-x size-3" aria-hidden="true" />
 				</button>

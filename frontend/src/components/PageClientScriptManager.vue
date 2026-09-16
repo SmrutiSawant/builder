@@ -56,7 +56,12 @@
 											icon: 'lucide-trash',
 										},
 									]">
-									<Button icon="lucide-more-horizontal" size="sm" variant="ghost" @click.stop></Button>
+									<Button
+										icon="lucide-more-horizontal"
+										:label="__('Script actions')"
+										size="sm"
+										variant="ghost"
+										@click.stop></Button>
 								</Dropdown>
 							</a>
 						</template>

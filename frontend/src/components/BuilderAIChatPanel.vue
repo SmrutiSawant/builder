@@ -13,16 +13,23 @@
 					variant="ghost"
 					size="sm"
 					icon="lucide-plus"
+					label="New chat"
 					tooltip="New chat"
 					:disabled="isSubmitting"
 					@click="newSession" />
 				<Dropdown v-if="sessionOptions.length" :options="sessionOptions" :offset="6">
-					<Button variant="ghost" size="sm" icon="lucide-history" tooltip="Chats on this page" />
+					<Button
+						variant="ghost"
+						size="sm"
+						icon="lucide-history"
+						label="Chats on this page"
+						tooltip="Chats on this page" />
 				</Dropdown>
 				<Button
 					variant="ghost"
 					size="sm"
 					icon="lucide-settings-2"
+					label="AI settings"
 					tooltip="AI settings"
 					@click="builderStore.openBuilderSettings('global_ai')" />
 			</div>
@@ -175,8 +182,9 @@
 													? 'text-ink-amber-8 hover:text-ink-amber-7'
 													: 'text-ink-gray-4 hover:text-ink-gray-7'
 											"
+											aria-label="Inspect this turn"
 											@click="openDebug(message.metadata.debug)">
-											<span class="lucide-activity size-2.5" />
+											<span class="lucide-activity size-2.5" aria-hidden="true" />
 										</button>
 									</Tooltip>
 								</div>
@@ -273,8 +281,9 @@
 							<button
 								type="button"
 								class="ml-0.5 flex items-center text-ink-gray-4 hover:text-ink-red-7"
+								aria-label="Remove from context"
 								@click="chat.detachBlock(block.id)">
-								<span class="lucide-x h-3 w-3" />
+								<span class="lucide-x h-3 w-3" aria-hidden="true" />
 							</button>
 						</Tooltip>
 					</span>
@@ -303,8 +312,9 @@
 								<button
 									type="button"
 									class="ml-0.5 flex items-center text-ink-gray-4 hover:text-ink-red-7"
+									aria-label="Remove image"
 									@click="clearImage">
-									<span class="lucide-x h-3 w-3" />
+									<span class="lucide-x h-3 w-3" aria-hidden="true" />
 								</button>
 							</Tooltip>
 						</span>
@@ -375,6 +385,7 @@
 							<button
 								class="flex size-7 items-center justify-center rounded text-ink-gray-5 transition-colors hover:bg-surface-gray-2 hover:text-ink-gray-8 disabled:cursor-not-allowed disabled:opacity-40"
 								:disabled="!prompt.trim() || isImprovingPrompt || isSubmitting"
+								aria-label="Improve prompt"
 								@click="chat.improvePrompt">
 								<span v-if="isImprovingPrompt" class="lucide-loader-circle size-3.5 animate-spin" />
 								<span v-else class="lucide-wand-sparkles size-3.5" />
@@ -386,12 +397,14 @@
 						variant="solid"
 						icon="lucide-square"
 						:loading="isCancelling"
+						label="Cancel generation"
 						:tooltip="isCancelling ? 'Cancelling…' : 'Cancel generation'"
 						@click="chat.cancel" />
 					<Button
 						v-else
 						variant="solid"
 						icon="lucide-arrow-up"
+						label="Send"
 						:disabled="!canSubmit"
 						@click="submitPrompt" />
 				</div>

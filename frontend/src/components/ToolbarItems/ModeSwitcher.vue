@@ -4,6 +4,7 @@
 			v-for="mode in modes"
 			:key="mode.mode"
 			:variant="builderStore.mode === mode.mode ? 'subtle' : 'ghost'"
+			:label="mode.description"
 			:tooltip="mode.description"
 			:icon="mode.icon"
 			@click="() => (builderStore.mode = mode.mode as BuilderMode)"

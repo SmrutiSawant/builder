@@ -9,6 +9,7 @@
 				class="flex-shrink-0 text-xs"
 				variant="subtle"
 				icon="lucide-x"
+				:label="__('Remove')"
 				@click="deleteItem(index)"></Button>
 		</div>
 		<Button variant="outline" class="w-full" :label="__('Add')" @click="addItem"></Button>

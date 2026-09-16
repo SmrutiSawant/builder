@@ -27,7 +27,7 @@
 							:theme="statusTheme(d.status)" />
 					</div>
 					<Dropdown v-if="getDomainActions(d).length" :options="getDomainActions(d)" placement="right">
-						<Button variant="ghost" icon="lucide-more-horizontal" />
+						<Button variant="ghost" icon="lucide-more-horizontal" :label="__('Domain actions')" />
 					</Dropdown>
 				</div>
 				<p v-if="d.status === 'Broken'" class="text-p-xs text-ink-red-8">
@@ -67,6 +67,7 @@
 						<button
 							type="button"
 							:disabled="!rec.copyValue"
+							:aria-label="__('Copy')"
 							@click="copyToClipboard(rec.copyValue)"
 							class="shrink-0 text-ink-gray-4 transition-colors hover:text-ink-gray-7 disabled:cursor-not-allowed disabled:opacity-40">
 							<span class="lucide-copy h-3.5 w-3.5" aria-hidden="true" />

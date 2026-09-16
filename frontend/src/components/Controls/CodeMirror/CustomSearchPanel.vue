@@ -7,6 +7,7 @@
 				variant="ghost"
 				size="sm"
 				class="h-full rounded-r-none"
+				:label="showReplace ? __('Hide Replace') : __('Show Replace')"
 				:tooltip="showReplace ? __('Hide Replace') : __('Show Replace')"
 				@click="toggleReplace">
 				<span
@@ -29,11 +30,13 @@
 						:variant="caseSensitive ? 'subtle' : 'ghost'"
 						size="sm"
 						icon="lucide-type"
+						:label="__('Match Case')"
 						:tooltip="__('Match Case')"
 						@click="toggleCaseSensitive" />
 					<Button
 						:variant="regexp ? 'subtle' : 'ghost'"
 						size="sm"
+						:label="__('Use Regular Expression')"
 						:tooltip="__('Use Regular Expression')"
 						@click="toggleIsRegexp">
 						<span class="font-mono text-xs">.*</span>
@@ -41,6 +44,7 @@
 					<Button
 						:variant="wholeWord ? 'subtle' : 'ghost'"
 						size="sm"
+						:label="__('Match Whole Word')"
 						:tooltip="__('Match Whole Word')"
 						@click="toggleWholeWord">
 						<span class="font-mono text-xs">Ab</span>
@@ -51,24 +55,28 @@
 						size="sm"
 						icon="lucide-chevron-up"
 						variant="ghost"
+						:label="__('Find Previous (Shift+Enter)')"
 						:tooltip="__('Find Previous (Shift+Enter)')"
 						@click.prevent="findPrevious(view)" />
 					<Button
 						size="sm"
 						variant="ghost"
 						icon="lucide-chevron-down"
+						:label="__('Find Next (Enter)')"
 						:tooltip="__('Find Next (Enter)')"
 						@click.prevent="findNext(view)" />
 					<Button
 						size="sm"
 						variant="ghost"
 						icon="lucide-align-justify"
+						:label="__('Select All Matches (Alt+Enter)')"
 						:tooltip="__('Select All Matches (Alt+Enter)')"
 						@click.prevent="selectMatches(view)" />
 					<Button
 						size="sm"
 						variant="ghost"
 						icon="lucide-x"
+						:label="__('Close (Esc)')"
 						:tooltip="__('Close (Esc)')"
 						@click.prevent="closePanel" />
 				</div>
@@ -86,12 +94,14 @@
 						size="sm"
 						variant="ghost"
 						icon="lucide-corner-down-right"
+						:label="__('Replace Next')"
 						:tooltip="__('Replace Next')"
 						@click.prevent="replaceNext(view)" />
 					<Button
 						size="sm"
 						variant="ghost"
 						icon="lucide-copy"
+						:label="__('Replace All')"
 						:tooltip="__('Replace All')"
 						@click.prevent="replaceAll(view)" />
 				</div>

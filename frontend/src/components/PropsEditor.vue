@@ -57,6 +57,7 @@
 										class="flex-shrink-0 bg-transparent text-xs text-ink-gray-6"
 										variant="subtle"
 										icon="lucide-x"
+										:label="__('Remove')"
 										@click.stop="deleteObjectKey(name as string)" />
 								</div>
 							</div>

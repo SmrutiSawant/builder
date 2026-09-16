@@ -29,8 +29,9 @@
 			v-show="dynamicValueKey"
 			class="absolute right-1 top-1 cursor-pointer p-1 text-ink-gray-4 hover:text-ink-gray-5"
 			tabindex="-1"
+			:aria-label="__('Clear')"
 			@click="$emit('clearDynamic')">
-			<span class="lucide-x size-3.5" />
+			<span class="lucide-x size-3.5" aria-hidden="true" />
 		</button>
 	</div>
 </template>
