@@ -36,11 +36,12 @@
 		</Dialog>
 		<Dialog v-model="builderStore.showSettingsDialog" :dismissable="false" size="5xl" bare>
 			<template #default>
-				<DialogTitle class="sr-only">{{ __("Builder Settings") }}</DialogTitle>
+				<DialogTitle class="sr-only">{{ settingsGroupTitles[builderStore.settingsGroup] }}</DialogTitle>
 				<DialogDescription class="sr-only">
-					{{ __("Configure page and global settings for this project.") }}
+					{{ __("Configure settings for this project.") }}
 				</DialogDescription>
 				<BuilderSettings
+					:group="builderStore.settingsGroup"
 					:initial-tab="builderStore.settingsActiveTab"
 					@close="builderStore.showSettingsDialog = false"></BuilderSettings>
 			</template>
@@ -50,6 +51,7 @@
 <script setup lang="ts">
 import { __ } from "@/translation";
 import Dialog from "@/components/Controls/Dialog.vue";
+import { settingsGroupTitles } from "@/components/Settings";
 import { toolbarItems, type ToolbarRegion } from "@/components/ToolbarItems";
 import useBuilderStore from "@/stores/builderStore";
 import { DialogDescription, DialogTitle } from "reka-ui";

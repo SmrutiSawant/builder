@@ -20,13 +20,10 @@ export type SettingsItem = RegistryItem & {
 /** a pane declares the loader once: register builds the component from it */
 type SettingsPane = Omit<SettingsItem, "component"> & { load: () => Promise<{ default: Component }> };
 
-// the sidebar renders groups in this order
-export const settingsGroups: SettingsGroup[] = ["Current Page", "Global"];
-
-/** raw group keys are compared throughout; these literals keep the headings extractable */
-export const settingsGroupLabels: Record<SettingsGroup, string> = {
-	"Current Page": __("Current Page"),
-	Global: __("Global"),
+/** raw group keys are compared throughout; these literals keep the dialog titles extractable */
+export const settingsGroupTitles: Record<SettingsGroup, string> = {
+	"Current Page": __("Page Settings"),
+	Global: __("Global Settings"),
 };
 
 export const settingsItems = createRegistry<SettingsItem>();

@@ -1,5 +1,6 @@
 import { __ } from "@/translation";
 import BlockContextMenu from "@/components/BlockContextMenu.vue";
+import { settingsItems, type SettingsGroup } from "@/components/Settings";
 import { builderSettings } from "@/data/builderSettings";
 import { BuilderSettings } from "@/types/doctypes";
 import RealTimeHandler from "@/utils/realtimeHandler";
@@ -59,6 +60,7 @@ const useBuilderStore = defineStore("builderStore", {
 		}),
 		canvasDarkMode: useStorage("canvasDarkMode", false),
 		showSettingsDialog: false,
+		settingsGroup: <SettingsGroup>"Current Page",
 		settingsActiveTab: useStorage("settingsActiveTab", "page_general"),
 		openImageUpload: false,
 		// Set from ai_setup_state: a provider carrying its own key (Anthropic, a
@@ -118,10 +120,19 @@ const useBuilderStore = defineStore("builderStore", {
 					builderSettings.reload();
 				});
 		},
-		openBuilderSettings(tab?: string) {
-			if (tab) {
-				this.settingsActiveTab = tab;
-			}
+		selectSettingsTab(tab: string) {
+			const group = settingsItems.all.value.find((item) => item.name === tab)?.group;
+			if (!group) return;
+			this.settingsActiveTab = tab;
+			this.settingsGroup = group;
+		},
+		openBuilderSettings(tab: string) {
+			this.selectSettingsTab(tab);
+			this.showSettingsDialog = true;
+		},
+		// the remembered tab is reused when it belongs to this group, else the group's first tab shows
+		openSettingsGroup(group: SettingsGroup) {
+			this.settingsGroup = group;
 			this.showSettingsDialog = true;
 		},
 	},
