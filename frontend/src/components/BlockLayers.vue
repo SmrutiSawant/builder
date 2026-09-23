@@ -20,7 +20,7 @@
 				<div
 					:data-block-layer-id="element.blockId"
 					:data-indent="indent"
-					:title="element.blockId"
+					:title="element.getBlockDescription()"
 					class="block-layer-item relative min-w-24 cursor-pointer select-none rounded-4 border border-transparent bg-surface-base bg-opacity-50 text-base text-ink-gray-7"
 					:class="{
 						'border-blue-500 !bg-blue-100 dark:!bg-blue-900':
@@ -75,7 +75,7 @@
 						<span
 							class="layer-label min-h-[1em] min-w-[2em] max-w-64 truncate"
 							:contenteditable="element.editable && !readonly"
-							:title="element.blockId"
+							:title="element.getBlockDescription()"
 							:class="{
 								'text-purple-500 opacity-80 dark:opacity-100 dark:brightness-125 dark:saturate-[0.3]':
 									element.isExtendedFromComponent(),
