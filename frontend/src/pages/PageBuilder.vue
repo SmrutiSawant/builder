@@ -316,6 +316,8 @@ onDeactivated(() => {
 	builderStore.realtime.doc_close("Builder Page", pageStore.activePage?.name as string);
 	builderStore.realtime.off("doc_viewers", () => {});
 	builderStore.viewers = [];
+	// KeepAlive only hides this page, so its Search popup (teleported to #popovers) would stay on screen
+	builderStore.showSearchBlock = false;
 });
 
 onMounted(() => {
