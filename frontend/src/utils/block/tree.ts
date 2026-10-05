@@ -50,15 +50,14 @@ export function findBlockInTree(blockId: string, blocks: Block[]): Block | null 
 interface SearchMatcher {
 	find(value: string): BlockSearchRange[];
 	equals(value: string): boolean;
-	replace(value: string, replacement: string): string;
 }
 
 interface SearchDomainHandler {
 	domain: BlockSearchDomain;
 	label(): string;
 	find(block: Block, matcher: SearchMatcher): BlockSearchMatch[];
-	// replaces every occurrence in the matched value; false when the value is stale or not replaceable
-	replace(block: Block, match: BlockSearchMatch, matcher: SearchMatcher, replacement: string): boolean;
+	// replaces the match's ranges; false when the value is stale or not replaceable
+	replace(block: Block, match: BlockSearchMatch, replacement: string): boolean;
 }
 
 interface StoredValue {
@@ -82,13 +81,23 @@ function createMatcher(text: string): SearchMatcher | null {
 				end: match.index + match[0].length,
 			})),
 		equals: (value) => value.toLowerCase() === text.toLowerCase(),
-		// a function replacer keeps "$&" and "$1" in the replacement literal
-		replace: (value, replacement) => value.replace(regex, () => replacement),
 	};
 }
 
 const findExact = (matcher: SearchMatcher, value: string) =>
 	matcher.equals(value) ? [{ start: 0, end: value.length }] : [];
+
+// splices the replacement in as plain text, so "$&" or "$1" stay literal; null for overlapping or out-of-range ranges
+function replaceRanges(value: string, ranges: BlockSearchRange[], replacement: string) {
+	let result = "";
+	let cursor = 0;
+	for (const { start, end } of [...ranges].sort((a, b) => a.start - b.start)) {
+		if (start < cursor || end <= start || end > value.length) return null;
+		result += value.slice(cursor, start) + replacement;
+		cursor = end;
+	}
+	return result + value.slice(cursor);
+}
 
 // values an instance leaves unset fall through to its component, as Block's get*() accessors do
 function getSearchEntries(
@@ -122,11 +131,13 @@ function createEntryDomain(
 				return [{ ...entry, blockId: block.blockId, domain, ranges, replaceable }];
 			});
 		},
-		replace(block, match, matcher, replacement) {
+		replace(block, match, replacement) {
 			if (!match.replaceable) return false;
 			const current = storedValues(block).find((value) => value.path === match.path);
 			if (!current?.set || current.value !== match.value) return false;
-			current.set(matcher.replace(current.value, replacement));
+			const value = replaceRanges(current.value, match.ranges, replacement);
+			if (value === null) return false;
+			current.set(value);
 			return true;
 		},
 	};
@@ -171,6 +182,24 @@ function findInTextNodes(nodes: Text[], matcher: SearchMatcher): BlockSearchRang
 	});
 }
 
+// each range has to sit inside one text node, as findInTextNodes reports them
+function replaceInTextNodes(nodes: Text[], ranges: BlockSearchRange[], replacement: string) {
+	let offset = 0;
+	let assigned = 0;
+	const texts = nodes.map((node) => {
+		const shift = offset;
+		offset += node.data.length;
+		const nodeRanges = ranges
+			.filter(({ start }) => start >= shift && start < offset)
+			.map(({ start, end }) => ({ start: start - shift, end: end - shift }));
+		assigned += nodeRanges.length;
+		return replaceRanges(node.data, nodeRanges, replacement);
+	});
+	if (assigned !== ranges.length || texts.includes(null)) return false;
+	nodes.forEach((node, index) => (node.data = texts[index] as string));
+	return true;
+}
+
 const contentDomain: SearchDomainHandler = {
 	domain: "content",
 	label: () => __("Content"),
@@ -193,11 +222,13 @@ const contentDomain: SearchDomainHandler = {
 			},
 		];
 	},
-	replace(block, match, matcher, replacement) {
+	replace(block, match, replacement) {
+		// checked again so a hand-built match can't rewrite a raw HTML block
+		if (!rendersText(block)) return false;
 		const template = parseContent(block.getInnerHTML());
 		const nodes = getTextNodes(template.content);
 		if (getText(nodes) !== match.value) return false;
-		nodes.forEach((node) => (node.data = matcher.replace(node.data, replacement)));
+		if (!replaceInTextNodes(nodes, match.ranges, replacement)) return false;
 		block.setInnerHTML(template.innerHTML);
 		return true;
 	},
@@ -213,6 +244,13 @@ type StyleMap = keyof typeof styleMaps;
 
 const hasStyleValue = (value: StyleValue) => value !== null && value !== undefined && value !== "";
 
+// a number or boolean stays one while the replaced text still reads as one
+function toStyleValue(previous: StyleValue, value: string): StyleValue {
+	if (typeof previous === "number" && value.trim() && Number.isFinite(Number(value))) return Number(value);
+	if (typeof previous === "boolean" && (value === "true" || value === "false")) return value === "true";
+	return value;
+}
+
 // writes to the breakpoint the value was found in, unlike setStyle() which uses the active one
 function getStyleValues(block: Block, map: StyleMap): StoredValue[] {
 	const styles = block[map] || {};
@@ -222,8 +260,9 @@ function getStyleValues(block: Block, map: StyleMap): StoredValue[] {
 			path: `${map}.${style}`,
 			label: `${styleMaps[map]()} · ${style}`,
 			value: String(value),
+			// an emptied value removes the style, as setStyle() does
 			set: (newValue: string) => {
-				if (newValue) styles[style as styleProperty] = newValue;
+				if (newValue.trim()) styles[style as styleProperty] = toStyleValue(value, newValue);
 				else delete styles[style as styleProperty];
 			},
 		}));
@@ -242,7 +281,8 @@ function getDataKeyValue(block: Block): StoredValue[] {
 			path: "dataKey",
 			label: __("Data Key"),
 			value: block.dataKey.key,
-			set: (key) => (block.dataKey = { ...block.dataKey, key }),
+			// an emptied key unbinds the block, as setDataKey() does
+			set: (key) => (block.dataKey = key ? { ...block.dataKey, key } : {}),
 		},
 	];
 }
@@ -254,7 +294,10 @@ function getDynamicValueKeys(block: Block): StoredValue[] {
 			path: `dynamicValues.${dynamicValue.type}.${dynamicValue.property}`,
 			label: __("Dynamic {0}", [dynamicValue.property || ""]),
 			value: dynamicValue.key as string,
-			set: (key) => (dynamicValue.key = key),
+			set: (key) => {
+				if (key) dynamicValue.key = key;
+				else block.removeDynamicValue(dynamicValue.property, dynamicValue.type as BlockDataKeyType);
+			},
 		}));
 }
 
@@ -266,7 +309,9 @@ function getVisibilityConditionValue(block: Block): StoredValue[] {
 			path: "visibilityCondition",
 			label: __("Visibility Condition"),
 			value: condition.key,
-			set: (key) => (block.visibilityCondition = { ...condition, key }),
+			// an emptied key clears the condition the way VisibilityInput does
+			set: (key) =>
+				(block.visibilityCondition = key ? { ...condition, key } : { key: undefined, comesFrom: undefined }),
 		},
 	];
 }
@@ -279,7 +324,7 @@ function getDynamicPropKeys(block: Block): StoredValue[] {
 			path: `props.${name}`,
 			label: __("Prop {0}", [name]),
 			value: prop.value as string,
-			set: (key) => (prop.value = key),
+			set: (key) => (prop.value = key || null),
 		}));
 }
 
@@ -368,22 +413,16 @@ export function searchBlocks(root: Block, query: BlockSearchQuery): BlockSearchR
 	return results;
 }
 
+// replaces each match's ranges, so passing a subset of ranges replaces just those occurrences;
 // matches whose value changed since the search are skipped, so callers should search again afterwards
-export function replaceMatches(
-	root: Block,
-	query: BlockSearchQuery,
-	matches: BlockSearchMatch[],
-	replacement: string,
-) {
-	const matcher = createMatcher(query.text);
-	if (!matcher) return 0;
+export function replaceMatches(root: Block, matches: BlockSearchMatch[], replacement: string) {
 	const blocks = new Map<string, Block>();
 	walkBlocks(root, (block) => blocks.set(block.blockId, block));
 	let replaced = 0;
 	for (const match of matches) {
 		const block = blocks.get(match.blockId);
 		const handler = searchDomains.find((domain) => domain.domain === match.domain);
-		if (block && handler?.replace(block, match, matcher, replacement)) replaced++;
+		if (block && match.ranges.length && handler?.replace(block, match, replacement)) replaced++;
 	}
 	return replaced;
 }
