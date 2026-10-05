@@ -1,488 +1,290 @@
 <template>
-	<div ref="searchBlock" class="focus-within:outline-none" @keydown="handleKeydown">
-		<div v-if="!builderStore.readOnlyMode" class="mb-4">
-			<OptionToggle
-				v-model="searchMode"
-				:options="[
-					{ label: __('Search'), value: 'search', icon: 'lucide-search' },
-					{ label: __('Find & Replace'), value: 'replace', icon: 'lucide-edit-3' },
-				]" />
-		</div>
-
-		<div class="mb-4 flex gap-2">
-			<BuilderInput
-				ref="searchInput"
-				class="flex-1"
-				type="text"
-				:placeholder="searchMode === 'replace' ? __('Find...') : __('Search blocks...')"
-				v-model="query"
-				@input="setQuery"
-				@keydown.enter="handlePrimaryAction" />
-
-			<Popover bare>
-				<template #trigger="{ open }">
-					<Button
-						icon="lucide-filter"
-						:label="__('Filters')"
-						:class="[
-							'flex items-center gap-2 text-sm',
-							selectedFiltersCount > 0 ? 'border-ink-gray-6 bg-ink-gray-1' : '',
-						]">
-						<span
-							v-if="selectedFiltersCount > 0"
-							class="bg-ink-gray-7 ml-1 rounded-full px-2 py-0.5 text-xs text-white">
-							{{ selectedFiltersCount }}
-						</span>
-						<span
-							:class="[open ? 'lucide-chevron-up' : 'lucide-chevron-down', 'size-4']"
-							aria-hidden="true" />
-					</Button>
-				</template>
-				<template #default>
-					<div class="w-48 rounded-6 bg-surface-base py-2 shadow-lg ring-1 ring-black ring-opacity-5">
-						<div class="text-xs-medium px-3 py-2 text-ink-gray-5">{{ __("Filter search results by:") }}</div>
-						<div class="space-y-1 px-2">
-							<label
-								v-for="filter in filters"
-								:key="filter.name"
-								class="flex cursor-pointer items-center rounded-4 px-2 py-1.5 text-sm text-ink-gray-8 hover:bg-surface-gray-1">
+	<div class="flex flex-col gap-2">
+		<!-- the toolbar takes the popup header's place, so the panel has no title row;
+		mousedown is stopped on the controls so pressing them doesn't drag the popup -->
+		<Teleport :to="headerTarget" :disabled="!headerTarget">
+			<div class="-ml-1 flex items-center justify-between gap-2">
+				<TabButtons v-if="canReplace" v-model="mode" :options="modeOptions" @mousedown.stop />
+				<div class="ml-auto flex items-center gap-0.5" @mousedown.stop>
+					<Tooltip :text="__('Search in selected blocks')">
+						<button
+							type="button"
+							:class="toolClass(isSelectionScope)"
+							:disabled="!canSearchSelection"
+							:aria-pressed="isSelectionScope"
+							@click="setScope(isSelectionScope ? 'page' : 'selection')">
+							<span class="lucide-square-dashed-mouse-pointer size-3.5" aria-hidden="true" />
+						</button>
+					</Tooltip>
+					<Popover side="bottom" align="end" :offset="6">
+						<template #trigger>
+							<button type="button" :class="toolClass(isFiltered)" :aria-label="__('Search in')">
+								<span class="lucide-list-filter size-3.5" aria-hidden="true" />
+							</button>
+						</template>
+						<template #default>
+							<div class="w-40 p-1">
+								<div class="px-2 pb-1 pt-1 text-xs text-ink-gray-5">{{ __("Search in") }}</div>
 								<Checkbox
-									:modelValue="filter.selected"
-									@update:modelValue="toggleFilter(filter)"
-									class="mr-3" />
-								<span>{{ filter.name }}</span>
-							</label>
-						</div>
-						<div class="border-surface-gray-3 mt-1 border-t px-2 pt-2">
-							<Button @click="clearAllFilters" variant="subtle" class="w-full">
-								{{ __("Clear all filters") }}
-							</Button>
-						</div>
-					</div>
-				</template>
-			</Popover>
-		</div>
+									v-for="{ domain, label } in domains"
+									:key="domain"
+									padded
+									size="sm"
+									:label="label"
+									:modelValue="activeDomains.includes(domain)"
+									:disabled="activeDomains.length === 1 && activeDomains.includes(domain)"
+									@update:modelValue="toggleDomain(domain)" />
+							</div>
+						</template>
+					</Popover>
+				</div>
+			</div>
+		</Teleport>
 
-		<div v-if="canvasStore.activeCanvas?.selectedBlocks?.length" class="mb-4">
-			<label class="flex cursor-pointer items-center text-sm text-ink-gray-7">
-				<Checkbox v-model="searchInSelectedBlock" @update:modelValue="performSearch" class="mr-2" />
-				<span>{{ __("Search inside selected block only") }}</span>
-			</label>
-		</div>
-
-		<div v-if="searchMode === 'replace'" class="mb-4">
-			<BuilderInput
-				class="w-full"
-				type="text"
-				:placeholder="__('Replace with...')"
-				v-model="replaceQuery"
-				@keydown.enter="handlePrimaryAction" />
-		</div>
+		<BuilderInput
+			ref="findInput"
+			:placeholder="isReplaceMode ? __('Find') : __('Search blocks')"
+			:modelValue="findText"
+			@input="(value: string) => (findText = value)">
+			<template #prefix>
+				<span class="lucide-search size-3.5 text-ink-gray-5" aria-hidden="true" />
+			</template>
+		</BuilderInput>
+		<BuilderInput
+			v-if="isReplaceMode"
+			:placeholder="__('Replace with')"
+			:modelValue="replaceText"
+			@input="(value: string) => (replaceText = value)">
+			<template #prefix>
+				<span class="lucide-corner-down-right size-3.5 text-ink-gray-5" aria-hidden="true" />
+			</template>
+		</BuilderInput>
 
 		<div
-			v-if="query && (searchMode === 'search' || (searchMode === 'replace' && results.length > 0))"
-			class="mb-4">
-			<Button
-				v-if="searchMode === 'replace'"
-				@click="handlePrimaryAction"
-				variant="solid"
-				class="w-full"
-				:disabled="!replaceQuery">
-				{{ __("Replace All ({0} matches)", [results.length]) }}
-			</Button>
-			<div v-if="searchMode === 'replace' && replacedCount > 0" class="mt-2 text-xs text-ink-gray-5">
-				{{
-					replacedCount === 1
-						? __("Replaced in {0} block", [replacedCount])
-						: __("Replaced in {0} blocks", [replacedCount])
-				}}
-			</div>
+			v-if="isSelectionScope"
+			class="flex h-6 items-center gap-1.5 rounded-4 pl-2 pr-1 text-xs"
+			:class="
+				results.scopeMissing ? 'bg-surface-amber-1 text-ink-amber-7' : 'bg-surface-gray-2 text-ink-gray-7'
+			">
+			<span class="lucide-square-dashed-mouse-pointer size-3 shrink-0" aria-hidden="true" />
+			<span class="flex-1 truncate">
+				{{ results.scopeMissing ? __("The selected blocks are no longer here") : scopeLabel }}
+			</span>
+			<button
+				type="button"
+				class="flex size-4 items-center justify-center rounded-4 hover:bg-surface-gray-4"
+				:aria-label="__('Search the whole page')"
+				@click="setScope('page')">
+				<span class="lucide-x size-3" aria-hidden="true" />
+			</button>
 		</div>
 
-		<div v-if="!query" class="mt-6 text-center">
-			<div class="flex flex-col items-center justify-center py-8">
-				<div class="mb-4 flex size-16 items-center justify-center rounded-full bg-surface-gray-2">
-					<span class="lucide-search size-8 text-ink-gray-4" aria-hidden="true" />
-				</div>
-				<h3 class="text-sm-medium mb-2 text-ink-gray-6">{{ __("Search your blocks") }}</h3>
+		<template v-if="query.text && results.blocks.length">
+			<div class="flex h-6 items-center justify-between gap-2">
+				<span class="text-xs text-ink-gray-5">{{ summary }}</span>
+				<Button
+					v-if="isReplaceMode"
+					size="sm"
+					:label="__('Replace All')"
+					:loading="replacing"
+					:disabled="!replaceableMatches.length"
+					@click="replace(replaceableMatches)" />
 			</div>
-		</div>
-
-		<div v-else-if="results.length > 0" class="max-h-64 overflow-y-auto">
-			<!-- Search Results -->
-			<div v-for="(result, index) in results" :key="result.blockId">
+			<div class="-mx-1 max-h-60 overflow-y-auto">
 				<div
-					class="mb-2 flex cursor-pointer items-center justify-between rounded-4 px-3 py-2 text-sm text-ink-gray-7 hover:bg-surface-gray-1"
-					@mouseover.stop="canvasStore.activeCanvas?.setHoveredBlock(result.blockId)"
-					@click="canvasStore.selectBlock(result, null, true, true)">
-					<div class="line-clamp-2 flex-1">
-						{{ result.getBlockDescription() }}
-						<div class="mt-1 text-xs text-ink-gray-5">
-							{{ getMatchDetails(result) }}
-						</div>
+					v-for="result in visibleBlocks"
+					:key="result.blockId"
+					class="rounded-4"
+					:class="{ 'bg-surface-gray-1': isSelected(result.blockId) }"
+					@mouseenter="setHoveredBlock(result.blockId)"
+					@mouseleave="setHoveredBlock(null)">
+					<button
+						type="button"
+						class="flex h-6 w-full items-center gap-1.5 rounded-4 px-1.5 text-left hover:bg-surface-gray-2"
+						@click="canvasStore.selectBlockSearchResult(result.blockId)">
+						<span class="size-3 shrink-0" :class="[result.icon, result.iconClass]" aria-hidden="true" />
+						<span class="truncate text-xs font-medium text-ink-gray-8">{{ result.name }}</span>
+					</button>
+					<div
+						v-for="match in result.matches"
+						:key="`${match.domain}:${match.path}`"
+						class="group relative flex h-6 cursor-pointer items-center gap-2 rounded-4 pl-6 pr-1 text-xs hover:bg-surface-gray-2"
+						@click="canvasStore.selectBlockSearchResult(result.blockId)">
+						<span class="max-w-[45%] shrink-0 truncate text-ink-gray-5">{{ match.label }}</span>
+						<!-- v-text keeps template whitespace out of the snippet -->
+						<span
+							class="min-w-0 flex-1 truncate text-ink-gray-8"
+							:class="{ 'font-mono': match.domain !== 'content' }">
+							<template v-for="(part, index) in getSnippet(match)" :key="index">
+								<mark
+									v-if="part.highlight"
+									class="rounded-sm bg-surface-amber-2 px-px text-ink-gray-9"
+									v-text="part.text" />
+								<span v-else v-text="part.text" />
+							</template>
+						</span>
+						<template v-if="isReplaceMode">
+							<!-- overlays the row end on hover, so snippets keep the full width -->
+							<Button
+								v-if="match.replaceable"
+								size="sm"
+								variant="outline"
+								class="absolute right-1 !h-5 opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
+								:label="__('Replace')"
+								:disabled="replacing"
+								@click.stop="replace([match])" />
+							<Tooltip
+								v-else
+								:text="match.inherited ? __('Set by the component') : __('Tags can only be searched')">
+								<span class="lucide-lock size-3 shrink-0 text-ink-gray-4" aria-hidden="true" />
+							</Tooltip>
+						</template>
 					</div>
-					<Button
-						v-if="searchMode === 'replace'"
-						@click.stop="replaceInBlock(result, index)"
-						variant="subtle"
-						class="ml-3 px-2 py-1 text-xs"
-						:disabled="!replaceQuery">
-						{{ __("Replace") }}
-					</Button>
+				</div>
+				<div v-if="hiddenBlockCount" class="px-1.5 py-1 text-xs text-ink-gray-5">
+					{{ __("{0} more blocks not shown", [hiddenBlockCount]) }}
 				</div>
 			</div>
-		</div>
-
-		<div v-else-if="query && results.length === 0" class="mt-6 text-center">
-			<!-- No Results State -->
-			<div class="flex flex-col items-center justify-center py-6">
-				<span class="lucide-search mb-3 size-6 text-ink-gray-4" aria-hidden="true" />
-				<h3 class="text-sm-medium mb-1 text-ink-gray-6">{{ __("No results found") }}</h3>
-				<p class="text-xs text-ink-gray-5">{{ __("Try different keywords or adjust your filters") }}</p>
-			</div>
-		</div>
+		</template>
+		<p v-else-if="!results.scopeMissing" class="py-1 text-center text-xs text-ink-gray-5">
+			{{ query.text ? __("No matches") : __("Search text, styles, data, tags and classes") }}
+		</p>
 	</div>
 </template>
 <script setup lang="ts">
-import { __ } from "@/translation";
-import type Block from "@/block";
 import useBuilderStore from "@/stores/builderStore";
 import useCanvasStore from "@/stores/canvasStore";
+import { __ } from "@/translation";
+import { getBlockSearchDomains } from "@/utils/block/tree";
 import { watchDebounced } from "@vueuse/core";
-import { Checkbox, Popover } from "frappe-ui";
-import { computed, nextTick, onMounted, Ref, ref, watch } from "vue";
-import { toast } from "frappe-ui";
-import OptionToggle from "./OptionToggle.vue";
+import { Checkbox, Popover, TabButtons, toast, Tooltip } from "frappe-ui";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+
+// long result lists render only their first blocks; Replace All still covers every match
+const MAX_VISIBLE_BLOCKS = 100;
+const SNIPPET_LEAD = 16;
+const SNIPPET_LENGTH = 80;
+// matches the layers panel
+const COMPONENT_ICON_CLASS =
+	"text-purple-500 opacity-80 dark:opacity-100 dark:brightness-125 dark:saturate-[0.3]";
+
+defineProps<{ headerTarget?: HTMLElement | null }>();
 
 const builderStore = useBuilderStore();
 const canvasStore = useCanvasStore();
 
-const searchBlock = ref(null) as Ref<HTMLInputElement | null>;
-const searchInput = ref(null) as Ref<HTMLInputElement | null>;
-const query = ref("");
-const replaceQuery = ref("");
-const searchMode = ref<"search" | "replace">("search");
-const replacedCount = ref(0);
-const results = ref([]) as Ref<Block[]>;
-const searchInSelectedBlock = ref(false);
+// UI state only: the query, scope, results and replacing live in canvasStore and the search engine
+const findInput = ref<{ $el: HTMLElement } | null>(null);
+const findText = ref(canvasStore.blockSearchQuery.text);
+const replaceText = ref("");
+const mode = ref<"search" | "replace">("search");
+const replacing = ref(false);
 
-const propertyHandlers = [
-	{
-		key: "element",
-		name: __("Tag"),
-		matches: (block: Block, term: string) => block.getElement()?.toLowerCase().includes(term),
-		replace: () => false,
-	},
-	{
-		// dynamicValues and dataKey
-		key: "data",
-		name: __("Data"),
-		matches: (block: Block, term: string) => {
-			if (block.getDynamicValues()) {
-				block.getDynamicValues().forEach((dv: BlockDataKey) => {
-					if (dv.key?.toLowerCase().includes(term)) {
-						return true;
-					}
-				});
-			}
-			if (block.dataKey) {
-				if (block.dataKey.key?.toLowerCase().includes(term)) {
-					return true;
-				}
-			}
-			return false;
-		},
-		replace: (block: Block, searchTerm: string, replaceTerm: string) => {},
-	},
-	{
-		key: "content",
-		name: __("Content"),
-		matches: (block: Block, term: string) => block.getInnerHTML()?.toLowerCase().includes(term),
-		replace: (block: Block, searchTerm: string, replaceTerm: string) => {
-			const innerHTML = block.getInnerHTML();
-			if (innerHTML) {
-				const regex = new RegExp(escapeRegExp(searchTerm), "gi");
-				if (regex.test(innerHTML)) {
-					block.setInnerHTML(innerHTML.replace(regex, replaceTerm));
-					return true;
-				}
-			}
-			return false;
-		},
-	},
-	{
-		key: "styles",
-		name: __("Style"),
-		matches: (block: Block, term: string) => {
-			const styles = { ...block.baseStyles, ...block.mobileStyles, ...block.tabletStyles };
-			return Object.values(styles).some((val) => String(val).toLowerCase().includes(term));
-		},
-		replace: (block: Block, searchTerm: string, replaceTerm: string) => {
-			let replaced = false;
-			replaced = replaceInProperty(block.baseStyles, searchTerm, replaceTerm) || replaced;
-			replaced = replaceInProperty(block.mobileStyles, searchTerm, replaceTerm) || replaced;
-			replaced = replaceInProperty(block.tabletStyles, searchTerm, replaceTerm) || replaced;
-			return replaced;
-		},
-	},
-	{
-		key: "attributes",
-		name: __("Attributes"),
-		matches: (block: Block, term: string) => {
-			const attrs = { ...block.attributes, ...block.customAttributes };
-			return Object.values(attrs).some((val) => String(val).toLowerCase().includes(term));
-		},
-		replace: (block: Block, searchTerm: string, replaceTerm: string) => {
-			let replaced = false;
-			replaced = replaceInProperty(block.attributes, searchTerm, replaceTerm) || replaced;
-			replaced = replaceInProperty(block.customAttributes, searchTerm, replaceTerm) || replaced;
-			return replaced;
-		},
-	},
-	{
-		key: "classes",
-		name: __("CSS Classes"),
-		matches: (block: Block, term: string) => {
-			return block.classes?.some((c) => c.toLowerCase().includes(term));
-		},
-		replace: (block: Block, searchTerm: string, replaceTerm: string) => {
-			if (!block.classes) return false;
-			let hasReplacement = false;
-			const regex = new RegExp(escapeRegExp(searchTerm), "gi");
-			block.classes = block.classes.map((c) => {
-				if (regex.test(c)) {
-					hasReplacement = true;
-					return c.replace(regex, replaceTerm);
-				}
-				return c;
-			});
-			return hasReplacement;
-		},
-	},
+const modeOptions = [
+	{ label: __("Search"), value: "search" },
+	{ label: __("Replace"), value: "replace" },
 ];
 
-const filters = ref(
-	propertyHandlers.map((h) => ({
-		name: h.name,
-		selected: false,
-		key: h.key,
-	})),
+const domains = getBlockSearchDomains();
+const query = computed(() => canvasStore.blockSearchQuery);
+const results = computed(() => canvasStore.blockSearchResults);
+const canReplace = computed(() => !builderStore.readOnlyMode);
+const isReplaceMode = computed(() => canReplace.value && mode.value === "replace");
+
+const toolClass = (active: boolean) => [
+	"flex size-7 items-center justify-center rounded-6 disabled:cursor-not-allowed disabled:opacity-40",
+	active
+		? "bg-surface-gray-3 text-ink-gray-9"
+		: "text-ink-gray-5 hover:bg-surface-gray-2 hover:text-ink-gray-7",
+];
+
+// an empty domain filter searches everything, so show that as every box ticked
+const isFiltered = computed(() => query.value.filters.domains.length > 0);
+const activeDomains = computed(() =>
+	isFiltered.value ? query.value.filters.domains : domains.map(({ domain }) => domain),
 );
 
-const selectedFiltersCount = computed(() => {
-	return filters.value.filter((f) => f.selected).length;
+function toggleDomain(domain: BlockSearchDomain) {
+	const active = activeDomains.value;
+	const next = active.includes(domain) ? active.filter((d) => d !== domain) : [...active, domain];
+	query.value.filters.domains = next.length === domains.length ? [] : next;
+}
+
+const isSelectionScope = computed(() => query.value.scope.type === "selection");
+const canSearchSelection = computed(
+	() => isSelectionScope.value || Boolean(canvasStore.activeCanvas?.selectedBlockIds.size),
+);
+const setScope = (type: BlockSearchScope["type"]) => canvasStore.setBlockSearchScope(type);
+
+const scopeLabel = computed(() => {
+	const scope = query.value.scope;
+	if (scope.type !== "selection") return "";
+	const name = blockInfo(scope.blockIds[0]).name;
+	return scope.blockIds.length > 1
+		? __("In {0} and {1} more", [name, scope.blockIds.length - 1])
+		: __("In {0}", [name]);
 });
 
-const setQuery = (value: string) => {
-	query.value = value;
-	replacedCount.value = 0;
-};
-
-const handlePrimaryAction = () => {
-	if (searchMode.value === "search") {
-		performSearch();
-	} else if (searchMode.value === "replace" && results.value.length > 0) {
-		replaceAll();
-	}
-};
-
-const handleKeydown = (event: KeyboardEvent) => {
-	// Cmd+F or Ctrl+F for quick search
-	if ((event.metaKey || event.ctrlKey) && event.key === "f") {
-		event.preventDefault();
-		const input = searchInput.value?.querySelector?.("input") || searchInput.value;
-		if (input && "focus" in input && typeof input.focus === "function") {
-			input.focus();
-		}
-	}
-	// Escape to clear search
-	if (event.key === "Escape") {
-		query.value = "";
-		replaceQuery.value = "";
-	}
-};
-
-const toggleFilter = (filter: any) => {
-	filter.selected = !filter.selected;
-	performSearch();
-};
-
-const clearAllFilters = () => {
-	filters.value.forEach((filter) => {
-		filter.selected = false;
-	});
-	performSearch();
-};
-
-const getMatchDetails = (block: Block) => {
-	if (!query.value) return "";
-
-	const lowerSearchTerm = query.value.toLowerCase();
-	const details = propertyHandlers.filter((h) => h.matches(block, lowerSearchTerm)).map((h) => h.name);
-
-	return details.length > 0 ? __("Found in: {0}", [details.join(", ")]) : "";
-};
-
-const replaceInProperty = (obj: any, searchTerm: string, replaceTerm: string): boolean => {
-	let hasReplacement = false;
-
-	if (typeof obj === "string") {
-		return obj.toLowerCase().includes(searchTerm.toLowerCase());
-	}
-
-	if (typeof obj === "object" && obj !== null) {
-		for (const key in obj) {
-			if (typeof obj[key] === "string") {
-				const regex = new RegExp(escapeRegExp(searchTerm), "gi");
-				if (regex.test(obj[key])) {
-					obj[key] = obj[key].replace(regex, replaceTerm);
-					hasReplacement = true;
-				}
-			} else if (typeof obj[key] === "object") {
-				hasReplacement = replaceInProperty(obj[key], searchTerm, replaceTerm) || hasReplacement;
-			}
-		}
-	}
-
-	return hasReplacement;
-};
-
-const escapeRegExp = (string: string) => {
-	return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-};
-
-const replaceInBlock = (block: Block, index: number) => {
-	if (!replaceQuery.value || !query.value) return;
-
-	let hasReplacement = false;
-	const searchTerm = query.value;
-	const replaceTerm = replaceQuery.value;
-	const activeFilterKeys = filters.value.filter((f) => f.selected).map((f) => f.key);
-	const replacers =
-		activeFilterKeys.length > 0
-			? propertyHandlers.filter((h) => activeFilterKeys.includes(h.key))
-			: propertyHandlers;
-
-	for (const replacer of replacers) {
-		if (replacer.replace(block, searchTerm, replaceTerm)) {
-			hasReplacement = true;
-		}
-	}
-
-	if (hasReplacement) {
-		replacedCount.value++;
-		results.value.splice(index, 1);
-		toast.success(__("Replaced in {0}", [block.getBlockDescription()]));
-	} else {
-		toast.error(__("No replacements made"));
-	}
-};
-
-const replaceAll = () => {
-	if (!replaceQuery.value || !query.value) return;
-
-	let totalReplacements = 0;
-	const blocksToReplace = [...results.value];
-
-	blocksToReplace.forEach((block, index) => {
-		const originalCount = replacedCount.value;
-		replaceInBlock(block, 0); // Always use index 0 since we're working with a copy
-		if (replacedCount.value > originalCount) {
-			totalReplacements++;
-		}
-	});
-
-	if (totalReplacements > 0) {
-		toast.success(
-			totalReplacements === 1
-				? __("Replaced in {0} block", [totalReplacements])
-				: __("Replaced in {0} blocks", [totalReplacements]),
-		);
-		performSearch();
-	} else {
-		toast.error(__("No replacements made"));
-	}
-};
-
-const performSearch = () => {
-	results.value = [];
-	if (query.value) {
-		const filteredBlocks = searchWithFilters(query.value);
-		if (filteredBlocks?.length) {
-			results.value = filteredBlocks;
-		}
-	}
-};
-
-const searchWithFilters = (searchTerm: string): Block[] => {
-	const searchResults: Block[] = [];
-	const limit = 50;
-	const lowerSearchTerm = searchTerm.toLowerCase();
-
-	const activeFilterKeys = filters.value.filter((f) => f.selected).map((f) => f.key);
-
-	const searchers =
-		activeFilterKeys.length > 0
-			? propertyHandlers.filter((h) => activeFilterKeys.includes(h.key))
-			: propertyHandlers;
-
-	function searchInBlock(block: Block) {
-		if (searchResults.length >= limit) return;
-		const matches = searchers.some((s) => s.matches(block, lowerSearchTerm));
-		if (matches) {
-			searchResults.push(block);
-		}
-		block.children?.forEach((child) => searchInBlock(child));
-	}
-
-	const selectedBlocks = canvasStore.activeCanvas?.selectedBlocks;
-	const startingBlock =
-		searchInSelectedBlock.value && selectedBlocks?.length
-			? selectedBlocks[0]
-			: canvasStore.activeCanvas?.getRootBlock();
-
-	if (startingBlock) {
-		searchInBlock(startingBlock);
-	}
-
-	return searchResults;
-};
-
-onMounted(async () => {
-	await nextTick();
-	const input = searchInput.value?.querySelector?.("input") || searchInput.value;
-	if (input && "focus" in input && typeof input.focus === "function") {
-		input.focus();
-	}
+const summary = computed(() => {
+	const { occurrenceCount, blocks } = results.value;
+	const matches = occurrenceCount === 1 ? __("1 match") : __("{0} matches", [occurrenceCount]);
+	return blocks.length === 1
+		? __("{0} in 1 block", [matches])
+		: __("{0} in {1} blocks", [matches, blocks.length]);
 });
 
-watchDebounced(query, performSearch, {
-	debounce: 300,
-});
-
-watchDebounced(() => filters.value.map((f) => f.selected).join(","), performSearch, {
-	debounce: 300,
-});
-
-watchDebounced(searchInSelectedBlock, performSearch, {
-	debounce: 300,
-});
-
-// the panel can stay open while a version preview loads, so drop out of replace mode
-watch(
-	() => builderStore.readOnlyMode,
-	(readOnly) => {
-		if (readOnly) searchMode.value = "search";
-	},
-	{ immediate: true },
+const visibleBlocks = computed(() =>
+	results.value.blocks
+		.slice(0, MAX_VISIBLE_BLOCKS)
+		.map((result) => ({ ...result, ...blockInfo(result.blockId) })),
+);
+const hiddenBlockCount = computed(() => results.value.blocks.length - visibleBlocks.value.length);
+const replaceableMatches = computed(() =>
+	results.value.blocks.flatMap((block) => block.matches).filter((match) => match.replaceable),
 );
 
-// Reset replaced count when switching modes
-watchDebounced(
-	searchMode,
-	() => {
-		replacedCount.value = 0;
-	},
-	{ debounce: 100 },
-);
+async function replace(matches: BlockSearchMatch[]) {
+	replacing.value = true;
+	const replaced = await canvasStore.replaceBlockSearchMatches(matches, replaceText.value);
+	replacing.value = false;
+	if (replaced < matches.length) {
+		toast.warning(__("Some matches changed since the search and were skipped"));
+	} else if (matches.length > 1) {
+		const occurrences = matches.reduce((total, match) => total + match.ranges.length, 0);
+		toast.success(__("Replaced {0} matches", [occurrences]));
+	}
+}
+
+const isSelected = (blockId: string) => Boolean(canvasStore.activeCanvas?.selectedBlockIds.has(blockId));
+const setHoveredBlock = (blockId: string | null) => canvasStore.activeCanvas?.setHoveredBlock(blockId);
+
+function blockInfo(blockId: string) {
+	const block = canvasStore.activeCanvas?.findBlock(blockId);
+	if (!block) return { name: blockId, icon: "lucide-square", iconClass: "text-ink-gray-5" };
+	return {
+		name: block.getBlockDescription(),
+		icon: block.extendedFromComponent ? "lucide-layout-dashboard" : block.getIcon(),
+		iconClass: block.isExtendedFromComponent() ? COMPONENT_ICON_CLASS : "text-ink-gray-5",
+	};
+}
+
+// a window around the first match, with every match inside it highlighted
+function getSnippet({ value, ranges }: BlockSearchMatch) {
+	const start = Math.max(0, ranges[0].start - SNIPPET_LEAD);
+	const end = Math.min(value.length, start + SNIPPET_LENGTH);
+	const parts = [{ text: start > 0 ? "…" : "", highlight: false }];
+	let cursor = start;
+	for (const range of ranges.filter((range) => range.start < end)) {
+		parts.push({ text: value.slice(cursor, range.start), highlight: false });
+		parts.push({ text: value.slice(range.start, Math.min(range.end, end)), highlight: true });
+		cursor = Math.min(range.end, end);
+	}
+	parts.push({ text: value.slice(cursor, end) + (end < value.length ? "…" : ""), highlight: false });
+	return parts.filter((part) => part.text);
+}
+
+watchDebounced(findText, (text) => (query.value.text = text), { debounce: 150 });
+
+onMounted(() => findInput.value?.$el.querySelector("input")?.focus());
+onBeforeUnmount(() => setHoveredBlock(null));
 </script>

@@ -108,12 +108,15 @@
 		<DraggablePopup
 			v-model="builderStore.showSearchBlock"
 			:container="canvasContainer"
+			:height="0"
 			placement="top-right"
 			:placementOffset="20"
 			v-if="builderStore.showSearchBlock">
-			<template #header>{{ __("Search Block") }}</template>
+			<template #header>
+				<div ref="searchHeader" class="min-w-0 flex-1" />
+			</template>
 			<template #content>
-				<SearchBlock></SearchBlock>
+				<SearchBlock :headerTarget="searchHeader"></SearchBlock>
 			</template>
 		</DraggablePopup>
 	</div>
@@ -185,6 +188,7 @@ const variables = computed(() => {
 
 const resizingBlock = ref(false);
 const canvasContainer = ref(null) as Ref<HTMLElement | null>;
+const searchHeader = ref(null) as Ref<HTMLElement | null>;
 const canvas = ref(null);
 const showBlocks = ref(false);
 const overlay = ref(null);
