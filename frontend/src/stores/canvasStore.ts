@@ -3,6 +3,7 @@ import type Block from "@/block";
 import type BuilderCanvas from "@/components/BuilderCanvas.vue";
 import type { IndicatorGeometry } from "@/utils/dropGeometry";
 import { getVersionedDoc } from "@/data/snapshot";
+import { replaceMatches, searchBlocks } from "@/utils/block/tree";
 import { confirm, getBlockCopy, getBlockInstance } from "@/utils/helpers";
 import { toast } from "frappe-ui";
 import { defineStore } from "pinia";
@@ -62,8 +63,41 @@ const useCanvasStore = defineStore("canvasStore", {
 		versionPreviewBlock: <Block | null>null,
 		previewSnapshotName: <string | null>null,
 		draftRootBackup: <Block | null>null,
+		blockSearchQuery: <BlockSearchQuery>{ text: "", filters: { domains: [] }, scope: { type: "page" } },
 	}),
+	getters: {
+		// read from the live root, so deleted blocks, undo/redo, version previews and
+		// page or component switches can't leave stale results behind
+		blockSearchResults(state): BlockSearchResults {
+			return searchBlocks(state.activeCanvas?.getRootBlock(), state.blockSearchQuery);
+		},
+	},
 	actions: {
+		setBlockSearchScope(type: BlockSearchScope["type"]) {
+			const blockIds = [...(this.activeCanvas?.selectedBlockIds || [])];
+			this.blockSearchQuery.scope =
+				type === "selection" && blockIds.length ? { type, blockIds } : { type: "page" };
+		},
+		// selects without touching the scope, which holds its own copy of the selection
+		selectBlockSearchResult(blockId: string) {
+			const block = this.activeCanvas?.findBlock(blockId);
+			if (block) this.selectBlock(block, null, true, true);
+			return Boolean(block);
+		},
+		async replaceBlockSearchMatches(matches: BlockSearchMatch[], replacement: string) {
+			// an open text editor holds its own history pause, which would swallow this commit
+			this.editableBlock = null;
+			await nextTick();
+			const root = this.activeCanvas?.getRootBlock();
+			if (!root) return 0;
+			const history = this.activeCanvas?.history;
+			const pauseId = history?.pause();
+			const replaced = replaceMatches(root, matches, replacement);
+			// resumed once the tree watchers have run, so the whole replace is one undo step
+			await nextTick();
+			if (pauseId) history?.resume(pauseId, replaced > 0);
+			return replaced;
+		},
 		// Preview a snapshot on the live page canvas itself so pan/zoom stay in place.
 		// Setting versionPreviewBlock flips the canvas to read-only (PageBuilder.vue
 		// watcher), which hibernates history — so swapping the root in/out never touches

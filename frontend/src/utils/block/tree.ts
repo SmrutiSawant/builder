@@ -1,4 +1,5 @@
 import type Block from "@/block";
+import useBuilderStore from "@/stores/builderStore";
 import { __ } from "@/translation";
 import { generateId } from "@/utils/helpers";
 
@@ -365,13 +366,17 @@ const classesDomain = createEntryDomain(
 		})),
 );
 
-export const searchDomains: SearchDomainHandler[] = [
+const searchDomains: SearchDomainHandler[] = [
 	contentDomain,
 	stylesDomain,
 	dataDomain,
 	tagDomain,
 	classesDomain,
 ];
+
+// handlers stay private so nothing can mutate blocks around replaceMatches' read-only check
+export const getBlockSearchDomains = () =>
+	searchDomains.map(({ domain, label }) => ({ domain, label: label() }));
 
 function walkBlocks(block: Block, visit: (block: Block) => void) {
 	visit(block);
@@ -380,7 +385,7 @@ function walkBlocks(block: Block, visit: (block: Block) => void) {
 
 // a selected block nested inside another selected block is already covered by its ancestor
 function getScopeRoots(root: Block, scope: BlockSearchScope): Block[] {
-	if (scope.type === "all") return [root];
+	if (scope.type === "page") return [root];
 	const blockIds = new Set(scope.blockIds);
 	const roots: Block[] = [];
 	const collect = (block: Block) => {
@@ -396,12 +401,15 @@ function getActiveDomains(filters: BlockSearchFilters) {
 	return searchDomains.filter((handler) => filters.domains.includes(handler.domain));
 }
 
-export function searchBlocks(root: Block, query: BlockSearchQuery): BlockSearchResults {
-	const results: BlockSearchResults = { blocks: [], matchCount: 0, occurrenceCount: 0 };
+export function searchBlocks(root: Block | null | undefined, query: BlockSearchQuery): BlockSearchResults {
+	const scopeRoots = root ? getScopeRoots(root, query.scope) : [];
+	// a missing scope stays as is rather than widening to the page: undo can bring its blocks back
+	const scopeMissing = Boolean(root) && !scopeRoots.length;
+	const results: BlockSearchResults = { blocks: [], matchCount: 0, occurrenceCount: 0, scopeMissing };
 	const matcher = createMatcher(query.text);
 	if (!matcher) return results;
 	const domains = getActiveDomains(query.filters);
-	getScopeRoots(root, query.scope).forEach((scopeRoot) =>
+	scopeRoots.forEach((scopeRoot) =>
 		walkBlocks(scopeRoot, (block) => {
 			const matches = domains.flatMap((handler) => handler.find(block, matcher));
 			if (!matches.length) return;
@@ -416,6 +424,8 @@ export function searchBlocks(root: Block, query: BlockSearchQuery): BlockSearchR
 // replaces each match's ranges, so passing a subset of ranges replaces just those occurrences;
 // matches whose value changed since the search are skipped, so callers should search again afterwards
 export function replaceMatches(root: Block, matches: BlockSearchMatch[], replacement: string) {
+	// read-only covers version previews, protected pages and site maintenance
+	if (useBuilderStore().readOnlyMode) return 0;
 	const blocks = new Map<string, Block>();
 	walkBlocks(root, (block) => blocks.set(block.blockId, block));
 	let replaced = 0;

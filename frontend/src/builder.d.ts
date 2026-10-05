@@ -169,7 +169,9 @@ declare interface BlockSearchFilters {
 	domains: BlockSearchDomain[];
 }
 
-declare type BlockSearchScope = { type: "all" } | { type: "selection"; blockIds: string[] };
+// "page" is the whole canvas: the page, or the component being edited.
+// a selection keeps the ids it was created with, so selecting a result never moves it
+declare type BlockSearchScope = { type: "page" } | { type: "selection"; blockIds: string[] };
 
 declare interface BlockSearchQuery {
 	text: string;
@@ -206,4 +208,6 @@ declare interface BlockSearchResults {
 	blocks: BlockSearchResult[];
 	matchCount: number;
 	occurrenceCount: number;
+	// every selected block of the scope is gone from this tree
+	scopeMissing: boolean;
 }
