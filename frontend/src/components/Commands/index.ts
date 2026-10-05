@@ -235,14 +235,24 @@ commands.register({
 	action: () => (builderStore.canvasDarkMode = !builderStore.canvasDarkMode),
 });
 
+// only the active canvas renders the Search popup, so there is a single Find input
+const focusBlockSearch = () => {
+	const input = document.querySelector<HTMLInputElement>(".search-block-input input");
+	input?.focus();
+	input?.select();
+};
+
 commands.register({
 	name: "search-blocks",
 	title: __("Search Blocks"),
 	icon: "lucide-search",
 	group: "General",
 	inPalette: false,
-	keys: { combo: "Mod+Shift+F", description: __("Search Blocks") },
-	action: () => (builderStore.showSearchBlock = true),
+	keys: { combo: "Mod+Shift+F", allowInInput: true, description: __("Search Blocks") },
+	action: () => {
+		builderStore.showSearchBlock = true;
+		nextTick(focusBlockSearch);
+	},
 });
 
 commands.register({
@@ -253,6 +263,7 @@ commands.register({
 	inPalette: false,
 	keys: { combo: "Mod+F", allowInInput: true, description: __("Focus Property Search") },
 	action: () => {
+		if (builderStore.showSearchBlock) return focusBlockSearch();
 		document.querySelector(".properties-search-input")?.querySelector("input")?.focus();
 	},
 });

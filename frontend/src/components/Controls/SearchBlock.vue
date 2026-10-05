@@ -41,11 +41,14 @@
 			</div>
 		</Teleport>
 
+		<!-- Enter only runs the search without waiting; replacing always takes a click -->
 		<BuilderInput
 			ref="findInput"
+			class="search-block-input"
 			:placeholder="isReplaceMode ? __('Find') : __('Search blocks')"
 			:modelValue="findText"
-			@input="(value: string) => (findText = value)">
+			@input="(value: string) => (findText = value)"
+			@keydown.enter.prevent="query.text = findText">
 			<template #prefix>
 				<span class="lucide-search size-3.5 text-ink-gray-5" aria-hidden="true" />
 			</template>
@@ -96,8 +99,8 @@
 					:key="result.blockId"
 					class="rounded-4"
 					:class="{ 'bg-surface-gray-1': isSelected(result.blockId) }"
-					@mouseenter="setHoveredBlock(result.blockId)"
-					@mouseleave="setHoveredBlock(null)">
+					@mouseenter="highlightBlock(result.blockId)"
+					@mouseleave="clearHighlight">
 					<button
 						type="button"
 						class="flex h-6 w-full items-center gap-1.5 rounded-4 px-1.5 text-left hover:bg-surface-gray-2"
@@ -158,7 +161,7 @@ import { __ } from "@/translation";
 import { getBlockSearchDomains } from "@/utils/block/tree";
 import { watchDebounced } from "@vueuse/core";
 import { Checkbox, Popover, TabButtons, toast, Tooltip } from "frappe-ui";
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 // long result lists render only their first blocks; Replace All still covers every match
 const MAX_VISIBLE_BLOCKS = 100;
@@ -256,7 +259,20 @@ async function replace(matches: BlockSearchMatch[]) {
 }
 
 const isSelected = (blockId: string) => Boolean(canvasStore.activeCanvas?.selectedBlockIds.has(blockId));
-const setHoveredBlock = (blockId: string | null) => canvasStore.activeCanvas?.setHoveredBlock(blockId);
+
+// the canvas and block Search highlighted, so clearing never drops a hover the canvas set itself
+let highlighted: { canvas: typeof canvasStore.activeCanvas; blockId: string } | null = null;
+
+function highlightBlock(blockId: string) {
+	highlighted = { canvas: canvasStore.activeCanvas, blockId };
+	highlighted.canvas?.setHoveredBlock(blockId);
+}
+
+function clearHighlight() {
+	if (!highlighted) return;
+	if (highlighted.canvas?.hoveredBlock === highlighted.blockId) highlighted.canvas.setHoveredBlock(null);
+	highlighted = null;
+}
 
 function blockInfo(blockId: string) {
 	const block = canvasStore.activeCanvas?.findBlock(blockId);
@@ -285,6 +301,11 @@ function getSnippet({ value, ranges }: BlockSearchMatch) {
 
 watchDebounced(findText, (text) => (query.value.text = text), { debounce: 150 });
 
+// a row removed under the cursor (replaced, deleted, filtered out) never fires mouseleave
+watch(visibleBlocks, (blocks) => {
+	if (highlighted && !blocks.some((block) => block.blockId === highlighted?.blockId)) clearHighlight();
+});
+
 onMounted(() => findInput.value?.$el.querySelector("input")?.focus());
-onBeforeUnmount(() => setHoveredBlock(null));
+onBeforeUnmount(clearHighlight);
 </script>

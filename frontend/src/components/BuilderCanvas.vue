@@ -111,7 +111,7 @@
 			:height="0"
 			placement="top-right"
 			:placementOffset="20"
-			v-if="builderStore.showSearchBlock">
+			v-if="builderStore.showSearchBlock && isActiveCanvas">
 			<template #header>
 				<div ref="searchHeader" class="min-w-0 flex-1" />
 			</template>
@@ -258,6 +258,9 @@ const canvasProps = reactive({
 		},
 	] as BreakpointConfig[],
 });
+
+// the page canvas stays mounted while a component is edited, so only the active canvas shows Search
+const isActiveCanvas = computed(() => canvasStore.activeCanvas?.canvasProps === canvasProps);
 
 const {
 	setScaleAndTranslate,
