@@ -48,7 +48,8 @@ export function findBlockInTree(blockId: string, blocks: Block[]): Block | null 
 }
 
 interface SearchMatcher {
-	count(value: string): number;
+	find(value: string): BlockSearchRange[];
+	equals(value: string): boolean;
 	replace(value: string, replacement: string): string;
 }
 
@@ -70,19 +71,24 @@ interface StoredValue {
 
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-// \b misses terms that start or end with punctuation, e.g. "-red"
-const wordBoundary = (pattern: string) => `(?<![\\p{L}\\p{N}_])${pattern}(?![\\p{L}\\p{N}_])`;
-
-function createMatcher(text: string, filters: BlockSearchFilters): SearchMatcher | null {
+// case-insensitive and literal: the query is never read as a pattern
+function createMatcher(text: string): SearchMatcher | null {
 	if (!text) return null;
-	const pattern = filters.wholeWord ? wordBoundary(escapeRegExp(text)) : escapeRegExp(text);
-	const regex = new RegExp(pattern, filters.caseSensitive ? "gu" : "giu");
+	const regex = new RegExp(escapeRegExp(text), "giu");
 	return {
-		count: (value) => value.match(regex)?.length ?? 0,
+		find: (value) =>
+			Array.from(value.matchAll(regex), (match) => ({
+				start: match.index,
+				end: match.index + match[0].length,
+			})),
+		equals: (value) => value.toLowerCase() === text.toLowerCase(),
 		// a function replacer keeps "$&" and "$1" in the replacement literal
 		replace: (value, replacement) => value.replace(regex, () => replacement),
 	};
 }
+
+const findExact = (matcher: SearchMatcher, value: string) =>
+	matcher.equals(value) ? [{ start: 0, end: value.length }] : [];
 
 // values an instance leaves unset fall through to its component, as Block's get*() accessors do
 function getSearchEntries(
@@ -103,16 +109,17 @@ function createEntryDomain(
 	domain: BlockSearchDomain,
 	label: () => string,
 	storedValues: (block: Block) => StoredValue[],
+	findRanges = (matcher: SearchMatcher, value: string) => matcher.find(value),
 ): SearchDomainHandler {
 	return {
 		domain,
 		label,
 		find(block, matcher) {
 			return getSearchEntries(block, storedValues).flatMap(({ set, ...entry }): BlockSearchMatch[] => {
-				const occurrences = matcher.count(entry.value);
-				if (!occurrences) return [];
+				const ranges = findRanges(matcher, entry.value);
+				if (!ranges.length) return [];
 				const replaceable = Boolean(set) && !entry.inherited;
-				return [{ ...entry, blockId: block.blockId, domain, occurrences, replaceable }];
+				return [{ ...entry, blockId: block.blockId, domain, ranges, replaceable }];
 			});
 		},
 		replace(block, match, matcher, replacement) {
@@ -127,10 +134,11 @@ function createEntryDomain(
 
 const nonTextParents = new Set(["script", "style"]);
 
-// unset content falls through to the referenced component, as getInnerHTML() does
-function getContent(block: Block): string {
-	if (block.innerHTML) return String(block.innerHTML);
-	return block.referenceComponent ? getContent(block.referenceComponent) : "";
+// mirrors BuilderBlock: every other block renders its innerHTML as raw HTML or not at all
+function rendersText(block: Block) {
+	if (block.isInlineSVG()) return false;
+	if (block.isLink() || block.isButton()) return !block.hasChildren();
+	return block.isText();
 }
 
 // <template> parses inertly: no scripts run and no images load
@@ -140,7 +148,7 @@ function parseContent(html: string) {
 	return template;
 }
 
-// only text nodes are matched, so tag names, attributes and entities are never rewritten
+// only the text the canvas shows is matched, never tag names, attributes or entities
 function getTextNodes(root: Node) {
 	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
 	const nodes: Text[] = [];
@@ -151,37 +159,46 @@ function getTextNodes(root: Node) {
 	return nodes;
 }
 
+const getText = (nodes: Text[]) => nodes.map((node) => node.data).join("");
+
+// ranges index the joined text; a match never spans two text nodes, so a replace can't split formatting
+function findInTextNodes(nodes: Text[], matcher: SearchMatcher): BlockSearchRange[] {
+	let offset = 0;
+	return nodes.flatMap((node) => {
+		const shift = offset;
+		offset += node.data.length;
+		return matcher.find(node.data).map(({ start, end }) => ({ start: start + shift, end: end + shift }));
+	});
+}
+
 const contentDomain: SearchDomainHandler = {
 	domain: "content",
 	label: () => __("Content"),
 	find(block, matcher) {
-		const content = getContent(block);
-		if (!content) return [];
-		const template = parseContent(content);
-		const occurrences = getTextNodes(template.content).reduce(
-			(total, node) => total + matcher.count(node.data),
-			0,
-		);
-		if (!occurrences) return [];
+		if (!rendersText(block)) return [];
+		const nodes = getTextNodes(parseContent(block.getInnerHTML()).content);
+		const ranges = findInTextNodes(nodes, matcher);
+		if (!ranges.length) return [];
 		return [
 			{
 				blockId: block.blockId,
 				domain: "content",
 				path: "innerHTML",
 				label: __("Content"),
-				value: template.content.textContent || "",
+				value: getText(nodes),
+				ranges,
 				inherited: !block.innerHTML,
-				occurrences,
 				// same as typing on the canvas: an instance gets its own content override
 				replaceable: true,
 			},
 		];
 	},
 	replace(block, match, matcher, replacement) {
-		const template = parseContent(getContent(block));
-		if ((template.content.textContent || "") !== match.value) return false;
-		getTextNodes(template.content).forEach((node) => (node.data = matcher.replace(node.data, replacement)));
-		block.innerHTML = template.innerHTML;
+		const template = parseContent(block.getInnerHTML());
+		const nodes = getTextNodes(template.content);
+		if (getText(nodes) !== match.value) return false;
+		nodes.forEach((node) => (node.data = matcher.replace(node.data, replacement)));
+		block.setInnerHTML(template.innerHTML);
 		return true;
 	},
 };
@@ -254,6 +271,18 @@ function getVisibilityConditionValue(block: Block): StoredValue[] {
 	];
 }
 
+// a dynamic prop's value is the data key it reads; static props hold literal values
+function getDynamicPropKeys(block: Block): StoredValue[] {
+	return Object.entries(block.props || {})
+		.filter(([, prop]) => prop.isDynamic && prop.value)
+		.map(([name, prop]) => ({
+			path: `props.${name}`,
+			label: __("Prop {0}", [name]),
+			value: prop.value as string,
+			set: (key) => (prop.value = key),
+		}));
+}
+
 const dataDomain = createEntryDomain(
 	"data",
 	() => __("Data"),
@@ -261,6 +290,7 @@ const dataDomain = createEntryDomain(
 		...getDataKeyValue(block),
 		...getDynamicValueKeys(block),
 		...getVisibilityConditionValue(block),
+		...getDynamicPropKeys(block),
 	],
 );
 
@@ -269,6 +299,7 @@ const tagDomain = createEntryDomain(
 	"tag",
 	() => __("Tag"),
 	(block) => (block.element ? [{ path: "element", label: __("Tag"), value: block.element }] : []),
+	findExact,
 );
 
 // a replacement may be empty (drops the class) or hold several classes
@@ -322,7 +353,7 @@ function getActiveDomains(filters: BlockSearchFilters) {
 
 export function searchBlocks(root: Block, query: BlockSearchQuery): BlockSearchResults {
 	const results: BlockSearchResults = { blocks: [], matchCount: 0, occurrenceCount: 0 };
-	const matcher = createMatcher(query.text, query.filters);
+	const matcher = createMatcher(query.text);
 	if (!matcher) return results;
 	const domains = getActiveDomains(query.filters);
 	getScopeRoots(root, query.scope).forEach((scopeRoot) =>
@@ -331,7 +362,7 @@ export function searchBlocks(root: Block, query: BlockSearchQuery): BlockSearchR
 			if (!matches.length) return;
 			results.blocks.push({ blockId: block.blockId, matches });
 			results.matchCount += matches.length;
-			results.occurrenceCount += matches.reduce((total, match) => total + match.occurrences, 0);
+			results.occurrenceCount += matches.reduce((total, match) => total + match.ranges.length, 0);
 		}),
 	);
 	return results;
@@ -344,7 +375,7 @@ export function replaceMatches(
 	matches: BlockSearchMatch[],
 	replacement: string,
 ) {
-	const matcher = createMatcher(query.text, query.filters);
+	const matcher = createMatcher(query.text);
 	if (!matcher) return 0;
 	const blocks = new Map<string, Block>();
 	walkBlocks(root, (block) => blocks.set(block.blockId, block));

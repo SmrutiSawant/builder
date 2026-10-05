@@ -167,8 +167,6 @@ declare type BlockSearchDomain = "content" | "styles" | "data" | "tag" | "classe
 declare interface BlockSearchFilters {
 	// empty searches every domain
 	domains: BlockSearchDomain[];
-	caseSensitive: boolean;
-	wholeWord: boolean;
 }
 
 declare type BlockSearchScope = { type: "all" } | { type: "selection"; blockIds: string[] };
@@ -179,6 +177,11 @@ declare interface BlockSearchQuery {
 	scope: BlockSearchScope;
 }
 
+declare interface BlockSearchRange {
+	start: number;
+	end: number;
+}
+
 // blocks are referenced by id: undo/redo rebuilds the tree with new instances
 declare interface BlockSearchMatch {
 	blockId: string;
@@ -187,7 +190,8 @@ declare interface BlockSearchMatch {
 	path: string;
 	label: string;
 	value: string;
-	occurrences: number;
+	// every occurrence of the query in value
+	ranges: BlockSearchRange[];
 	// read from the referenced component because the instance does not override it
 	inherited: boolean;
 	replaceable: boolean;
