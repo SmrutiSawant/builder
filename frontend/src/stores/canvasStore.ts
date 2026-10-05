@@ -89,13 +89,13 @@ const useCanvasStore = defineStore("canvasStore", {
 			this.editableBlock = null;
 			await nextTick();
 			const root = this.activeCanvas?.getRootBlock();
-			if (!root) return 0;
+			if (!root) return [];
 			const history = this.activeCanvas?.history;
 			const pauseId = history?.pause();
 			const replaced = replaceMatches(root, matches, replacement);
 			// resumed once the tree watchers have run, so the whole replace is one undo step
 			await nextTick();
-			if (pauseId) history?.resume(pauseId, replaced > 0);
+			if (pauseId) history?.resume(pauseId, replaced.length > 0);
 			return replaced;
 		},
 		// Preview a snapshot on the live page canvas itself so pan/zoom stay in place.

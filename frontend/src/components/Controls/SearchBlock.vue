@@ -91,7 +91,7 @@
 					:label="__('Replace All')"
 					:loading="replacing"
 					:disabled="!replaceableMatches.length"
-					@click="replace(replaceableMatches)" />
+					@click="replaceAll" />
 			</div>
 			<div class="-mx-1 max-h-60 overflow-y-auto">
 				<div
@@ -135,7 +135,7 @@
 								class="absolute right-1 !h-5 opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
 								:label="__('Replace')"
 								:disabled="replacing"
-								@click.stop="replace([match])" />
+								@click.stop="replaceOne(match)" />
 							<Tooltip
 								v-else
 								:text="match.inherited ? __('Set by the component') : __('Tags can only be searched')">
@@ -228,13 +228,12 @@ const scopeLabel = computed(() => {
 		: __("In {0}", [name]);
 });
 
-const summary = computed(() => {
-	const { occurrenceCount, blocks } = results.value;
-	const matches = occurrenceCount === 1 ? __("1 match") : __("{0} matches", [occurrenceCount]);
-	return blocks.length === 1
-		? __("{0} in 1 block", [matches])
-		: __("{0} in {1} blocks", [matches, blocks.length]);
-});
+function countLabel(occurrences: number, blockCount: number) {
+	const matches = occurrences === 1 ? __("1 match") : __("{0} matches", [occurrences]);
+	return blockCount === 1 ? __("{0} in 1 block", [matches]) : __("{0} in {1} blocks", [matches, blockCount]);
+}
+
+const summary = computed(() => countLabel(results.value.occurrenceCount, results.value.blocks.length));
 
 const visibleBlocks = computed(() =>
 	results.value.blocks
@@ -250,12 +249,34 @@ async function replace(matches: BlockSearchMatch[]) {
 	replacing.value = true;
 	const replaced = await canvasStore.replaceBlockSearchMatches(matches, replaceText.value);
 	replacing.value = false;
-	if (replaced < matches.length) {
-		toast.warning(__("Some matches changed since the search and were skipped"));
-	} else if (matches.length > 1) {
-		const occurrences = matches.reduce((total, match) => total + match.ranges.length, 0);
-		toast.success(__("Replaced {0} matches", [occurrences]));
-	}
+	return replaced;
+}
+
+async function replaceAll() {
+	// typing reaches the query after a debounce; without this, a quick click replaces the previous text's matches
+	query.value.text = findText.value;
+	const matches = replaceableMatches.value;
+	if (!matches.length) return;
+	showReplaceSummary(matches, await replace(matches));
+}
+
+// a single replace shows in the results, so only a failure needs a toast
+async function replaceOne(match: BlockSearchMatch) {
+	const replaced = await replace([match]);
+	if (!replaced.length) showReplaceSummary([match], replaced);
+}
+
+// one toast for the whole run, however many blocks it changed
+function showReplaceSummary(matches: BlockSearchMatch[], replaced: BlockSearchMatch[]) {
+	if (!canReplace.value) return toast.warning(__("The page is read-only, so nothing was replaced"));
+	if (!replaced.length)
+		return toast.warning(__("Nothing was replaced: the matches changed since the search"));
+	const occurrences = replaced.reduce((total, match) => total + match.ranges.length, 0);
+	const blockCount = new Set(replaced.map((match) => match.blockId)).size;
+	const done = __("Replaced {0}", [countLabel(occurrences, blockCount)]);
+	const skipped = matches.length - replaced.length;
+	if (!skipped) return toast.success(done);
+	toast.warning(__("{0}. {1} skipped because they changed since the search", [done, skipped]));
 }
 
 const isSelected = (blockId: string) => Boolean(canvasStore.activeCanvas?.selectedBlockIds.has(blockId));

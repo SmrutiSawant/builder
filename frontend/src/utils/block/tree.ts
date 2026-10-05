@@ -422,17 +422,17 @@ export function searchBlocks(root: Block | null | undefined, query: BlockSearchQ
 }
 
 // replaces each match's ranges, so passing a subset of ranges replaces just those occurrences;
-// matches whose value changed since the search are skipped, so callers should search again afterwards
+// returns the matches that were replaced: ones whose value changed since the search are skipped
 export function replaceMatches(root: Block, matches: BlockSearchMatch[], replacement: string) {
+	const replaced: BlockSearchMatch[] = [];
 	// read-only covers version previews, protected pages and site maintenance
-	if (useBuilderStore().readOnlyMode) return 0;
+	if (useBuilderStore().readOnlyMode) return replaced;
 	const blocks = new Map<string, Block>();
 	walkBlocks(root, (block) => blocks.set(block.blockId, block));
-	let replaced = 0;
 	for (const match of matches) {
 		const block = blocks.get(match.blockId);
 		const handler = searchDomains.find((domain) => domain.domain === match.domain);
-		if (block && match.ranges.length && handler?.replace(block, match, replacement)) replaced++;
+		if (block && match.ranges.length && handler?.replace(block, match, replacement)) replaced.push(match);
 	}
 	return replaced;
 }
