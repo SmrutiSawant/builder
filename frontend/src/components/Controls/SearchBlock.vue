@@ -108,7 +108,7 @@
 					<button
 						type="button"
 						class="flex h-6 w-full items-center gap-1.5 rounded-4 px-1.5 text-left hover:bg-surface-gray-2"
-						@click="canvasStore.selectBlockSearchResult(result.blockId)">
+						@click="selectResult(result.blockId)">
 						<span class="size-3 shrink-0" :class="[result.icon, result.iconClass]" aria-hidden="true" />
 						<span class="truncate text-xs font-medium text-ink-gray-8">{{ result.name }}</span>
 					</button>
@@ -116,7 +116,7 @@
 						v-for="match in result.matches"
 						:key="`${match.domain}:${match.path}`"
 						class="group relative flex h-6 cursor-pointer items-center gap-2 rounded-4 pl-6 pr-1 text-xs hover:bg-surface-gray-2"
-						@click="canvasStore.selectBlockSearchResult(result.blockId)">
+						@click="selectResult(result.blockId)">
 						<span class="max-w-[45%] shrink-0 truncate text-ink-gray-5">{{ match.label }}</span>
 						<!-- v-text keeps template whitespace out of the snippet -->
 						<span
@@ -224,6 +224,27 @@ const canSearchSelection = computed(
 	() => isSelectionScope.value || Boolean(canvasStore.activeCanvas?.selectedBlockIds.size),
 );
 const setScope = (type: BlockSearchScope["type"]) => canvasStore.setBlockSearchScope(type);
+
+// selecting on the canvas scopes Search to that selection, but selecting a result must not,
+// or clicking a result would narrow the search down to it
+let resultSelection: string | null = null;
+
+function selectResult(blockId: string) {
+	resultSelection = blockId;
+	canvasStore.selectBlockSearchResult(blockId);
+}
+
+const selectionKey = computed(() => Array.from(canvasStore.activeCanvas?.selectedBlockIds || []).join(","));
+
+watch(
+	selectionKey,
+	(key) => {
+		const fromResult = key === resultSelection;
+		resultSelection = null;
+		if (!fromResult) setScope(key ? "selection" : "page");
+	},
+	{ immediate: true },
+);
 
 const scopeLabel = computed(() => {
 	const scope = query.value.scope;
