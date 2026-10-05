@@ -4,7 +4,11 @@
 		mousedown is stopped on the controls so pressing them doesn't drag the popup -->
 		<Teleport :to="headerTarget" :disabled="!headerTarget">
 			<div class="-ml-1 flex items-center justify-between gap-2">
-				<TabButtons v-if="canReplace" v-model="mode" :options="modeOptions" @mousedown.stop />
+				<TabButtons
+					:modelValue="isReplaceMode ? 'replace' : 'search'"
+					:options="modeOptions"
+					@update:modelValue="setMode"
+					@mousedown.stop />
 				<div class="ml-auto flex items-center gap-0.5" @mousedown.stop>
 					<Tooltip :text="__('Search in selected blocks')">
 						<button
@@ -160,7 +164,7 @@ import useCanvasStore from "@/stores/canvasStore";
 import { __ } from "@/translation";
 import { getBlockSearchDomains } from "@/utils/block/tree";
 import { watchDebounced } from "@vueuse/core";
-import { Checkbox, Popover, TabButtons, toast, Tooltip } from "frappe-ui";
+import { Checkbox, Popover, TabButtons, toast, Tooltip, type TabButtonValue } from "frappe-ui";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 // long result lists render only their first blocks; Replace All still covers every match
@@ -183,16 +187,18 @@ const replaceText = ref("");
 const mode = ref<"search" | "replace">("search");
 const replacing = ref(false);
 
-const modeOptions = [
-	{ label: __("Search"), value: "search" },
-	{ label: __("Replace"), value: "replace" },
-];
-
 const domains = getBlockSearchDomains();
 const query = computed(() => canvasStore.blockSearchQuery);
 const results = computed(() => canvasStore.blockSearchResults);
 const canReplace = computed(() => !builderStore.readOnlyMode);
 const isReplaceMode = computed(() => canReplace.value && mode.value === "replace");
+
+// read-only shows only the Search tab; the chosen mode comes back when editing does
+const modeOptions = computed(() => [
+	{ label: __("Search"), value: "search" },
+	...(canReplace.value ? [{ label: __("Replace"), value: "replace" }] : []),
+]);
+const setMode = (value: TabButtonValue) => (mode.value = value as typeof mode.value);
 
 const toolClass = (active: boolean) => [
 	"flex size-7 items-center justify-center rounded-6 disabled:cursor-not-allowed disabled:opacity-40",
