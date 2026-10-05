@@ -67,6 +67,8 @@ interface StoredValue {
 	value: string;
 	// absent when the value is search-only
 	set?(value: string): void;
+	// read from what the block renders, which already falls back to the component's content
+	rendered?: boolean;
 }
 
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -110,7 +112,7 @@ function getSearchEntries(
 	if (!component) return own;
 	const ownPaths = new Set(own.map((value) => value.path));
 	const inherited = getSearchEntries(component, storedValues)
-		.filter((value) => !ownPaths.has(value.path))
+		.filter((value) => !ownPaths.has(value.path) && !value.rendered)
 		.map((value) => ({ ...value, inherited: true }));
 	return [...own, ...inherited];
 }
@@ -269,10 +271,51 @@ function getStyleValues(block: Block, map: StyleMap): StoredValue[] {
 		}));
 }
 
+// "color: red; background: url(a;b)" -> [["color", "red"], ["background", "url(a;b)"]]; read as written,
+// since the browser's style API turns #ff0000 into rgb(255, 0, 0)
+function parseDeclarations(style: string) {
+	return style
+		.split(/;(?![^(]*\))/)
+		.map((declaration) => {
+			const colon = declaration.indexOf(":");
+			if (colon === -1) return ["", ""];
+			return [declaration.slice(0, colon).trim(), declaration.slice(colon + 1).trim()];
+		})
+		.filter(([property, value]) => property && value)
+		.map(([property, value]) => [property.toLowerCase(), value]);
+}
+
+// inline styles the text editor puts on parts of the text, e.g. <span style="color: red">
+function getTextFormattingValues(block: Block): StoredValue[] {
+	if (!rendersText(block)) return [];
+	const template = parseContent(block.getInnerHTML());
+	return [...template.content.querySelectorAll<HTMLElement>("[style]")].flatMap((element, index) => {
+		const declarations = parseDeclarations(element.getAttribute("style") || "");
+		return declarations.map(([property, value], position) => ({
+			path: `innerHTML.style.${index}.${position}`,
+			label: __("Text style · {0}", [property]),
+			value,
+			rendered: true,
+			// only this declaration changes; an emptied value drops it, and the text and other formatting stay
+			set: (newValue: string) => {
+				const next = newValue.trim()
+					? declarations.map(([p, v], i) => [p, i === position ? newValue : v])
+					: declarations.filter((_, i) => i !== position);
+				if (next.length) element.setAttribute("style", next.map(([p, v]) => `${p}: ${v}`).join("; "));
+				else element.removeAttribute("style");
+				block.setInnerHTML(template.innerHTML);
+			},
+		}));
+	});
+}
+
 const stylesDomain = createEntryDomain(
 	"styles",
 	() => __("Styles"),
-	(block) => (Object.keys(styleMaps) as StyleMap[]).flatMap((map) => getStyleValues(block, map)),
+	(block) => [
+		...(Object.keys(styleMaps) as StyleMap[]).flatMap((map) => getStyleValues(block, map)),
+		...getTextFormattingValues(block),
+	],
 );
 
 function getDataKeyValue(block: Block): StoredValue[] {
