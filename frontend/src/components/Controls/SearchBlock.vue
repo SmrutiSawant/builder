@@ -163,6 +163,7 @@ import useBuilderStore from "@/stores/builderStore";
 import useCanvasStore from "@/stores/canvasStore";
 import { __ } from "@/translation";
 import { getBlockSearchDomains } from "@/utils/block/tree";
+import { confirm } from "@/utils/helpers";
 import { watchDebounced } from "@vueuse/core";
 import { Checkbox, Popover, TabButtons, toast, Tooltip, type TabButtonValue } from "frappe-ui";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
@@ -265,6 +266,11 @@ function countLabel(occurrences: number, blockCount: number) {
 
 const summary = computed(() => countLabel(results.value.occurrenceCount, results.value.blocks.length));
 
+function describeMatches(matches: BlockSearchMatch[]) {
+	const occurrences = matches.reduce((total, match) => total + match.ranges.length, 0);
+	return countLabel(occurrences, new Set(matches.map((match) => match.blockId)).size);
+}
+
 const visibleBlocks = computed(() =>
 	results.value.blocks
 		.slice(0, MAX_VISIBLE_BLOCKS)
@@ -287,6 +293,11 @@ async function replaceAll() {
 	query.value.text = findText.value;
 	const matches = replaceableMatches.value;
 	if (!matches.length) return;
+	// an empty replacement deletes every match, so ask first
+	const confirmed =
+		replaceText.value ||
+		(await confirm(__("Delete {0}?", [describeMatches(matches)]), __("Replace with Nothing")));
+	if (!confirmed) return;
 	showReplaceSummary(matches, await replace(matches));
 }
 
@@ -301,9 +312,7 @@ function showReplaceSummary(matches: BlockSearchMatch[], replaced: BlockSearchMa
 	if (!canReplace.value) return toast.warning(__("The page is read-only, so nothing was replaced"));
 	if (!replaced.length)
 		return toast.warning(__("Nothing was replaced: the matches changed since the search"));
-	const occurrences = replaced.reduce((total, match) => total + match.ranges.length, 0);
-	const blockCount = new Set(replaced.map((match) => match.blockId)).size;
-	const done = __("Replaced {0}", [countLabel(occurrences, blockCount)]);
+	const done = __("Replaced {0}", [describeMatches(replaced)]);
 	const skipped = matches.length - replaced.length;
 	if (!skipped) return toast.success(done);
 	toast.warning(__("{0}. {1} skipped because they changed since the search", [done, skipped]));
