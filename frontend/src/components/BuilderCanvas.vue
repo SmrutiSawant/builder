@@ -132,7 +132,7 @@ import useCanvasStore from "@/stores/canvasStore";
 import usePageStore from "@/stores/pageStore";
 import { __ } from "@/translation";
 import { BreakpointConfig, CanvasHistory } from "@/types/Builder/BuilderCanvas";
-import { getBlockObject, isCtrlOrCmd } from "@/utils/helpers";
+import { isCtrlOrCmd } from "@/utils/helpers";
 import {
 	type BlockClientScriptRuntime,
 	executeClientScriptRestricted,
@@ -346,33 +346,6 @@ const handleClick = (ev: MouseEvent) => {
 	}
 };
 
-function searchBlock(searchTerm: string, targetBlock: null | Block, limit: number = 5): Block[] {
-	const results: Block[] = [];
-
-	function search(block: Block) {
-		if (results.length >= limit) return;
-
-		const blockObject = getBlockObject(block);
-		const children = blockObject.children || [];
-		delete blockObject.children;
-
-		if (JSON.stringify(blockObject).toLowerCase().includes(searchTerm.toLowerCase())) {
-			results.push(findBlock(block.blockId) as Block);
-		}
-
-		for (const child of children) {
-			search(child);
-		}
-	}
-
-	if (!targetBlock) {
-		targetBlock = getRootBlock();
-	}
-
-	search(targetBlock);
-	return results;
-}
-
 function setActiveBreakpoint(breakpoint: string | null) {
 	activeBreakpoint.value = breakpoint;
 }
@@ -443,7 +416,6 @@ defineExpose({
 	removeBlock,
 	selectBlockRange,
 	resizingBlock,
-	searchBlock,
 	activeBreakpoint,
 	hoveredBreakpoint,
 	hoveredBlock,

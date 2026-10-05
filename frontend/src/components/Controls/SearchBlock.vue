@@ -249,10 +249,13 @@ watch(
 const scopeLabel = computed(() => {
 	const scope = query.value.scope;
 	if (scope.type !== "selection") return "";
-	const name = blockInfo(scope.blockIds[0]).name;
-	return scope.blockIds.length > 1
-		? __("In {0} and {1} more", [name, scope.blockIds.length - 1])
-		: __("In {0}", [name]);
+	// deleted blocks drop out of the label; when none are left the chip shows scopeMissing instead
+	const names = scope.blockIds.flatMap(
+		(id) => canvasStore.activeCanvas?.findBlock(id)?.getBlockDescription() ?? [],
+	);
+	return names.length > 1
+		? __("In {0} and {1} more", [names[0], names.length - 1])
+		: __("In {0}", [names[0]]);
 });
 
 function countLabel(occurrences: number, blockCount: number) {
