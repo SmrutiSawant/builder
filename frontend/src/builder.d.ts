@@ -161,3 +161,45 @@ declare interface BlockDataKey {
 declare type BlockDataKeyType = "key" | "attribute" | "style";
 
 declare type CSSVariableName = string | `var(--${string})`;
+
+declare type BlockSearchDomain = "content" | "styles" | "data" | "tag" | "classes";
+
+declare interface BlockSearchFilters {
+	// empty searches every domain
+	domains: BlockSearchDomain[];
+	caseSensitive: boolean;
+	wholeWord: boolean;
+}
+
+declare type BlockSearchScope = { type: "all" } | { type: "selection"; blockIds: string[] };
+
+declare interface BlockSearchQuery {
+	text: string;
+	filters: BlockSearchFilters;
+	scope: BlockSearchScope;
+}
+
+// blocks are referenced by id: undo/redo rebuilds the tree with new instances
+declare interface BlockSearchMatch {
+	blockId: string;
+	domain: BlockSearchDomain;
+	// stable address of the value inside its domain, e.g. "mobileStyles.color"
+	path: string;
+	label: string;
+	value: string;
+	occurrences: number;
+	// read from the referenced component because the instance does not override it
+	inherited: boolean;
+	replaceable: boolean;
+}
+
+declare interface BlockSearchResult {
+	blockId: string;
+	matches: BlockSearchMatch[];
+}
+
+declare interface BlockSearchResults {
+	blocks: BlockSearchResult[];
+	matchCount: number;
+	occurrenceCount: number;
+}
