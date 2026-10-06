@@ -9,7 +9,7 @@
 					:options="modeOptions"
 					@update:modelValue="setMode"
 					@mousedown.stop />
-				<div class="ml-auto flex items-center gap-0.5" @mousedown.stop>
+				<div class="ml-auto mr-1 flex items-center gap-1" @mousedown.stop>
 					<Tooltip :text="__('Search in selected blocks')">
 						<button
 							type="button"
