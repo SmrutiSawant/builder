@@ -2,6 +2,7 @@ import type Block from "@/block";
 import useBuilderStore from "@/stores/builderStore";
 import { __ } from "@/translation";
 import { generateId } from "@/utils/helpers";
+import { unref } from "vue";
 
 export function resetBlock(
 	block: Block | BlockOptions,
@@ -108,7 +109,8 @@ function getSearchEntries(
 	storedValues: (block: Block) => StoredValue[],
 ): (StoredValue & { inherited: boolean })[] {
 	const own = storedValues(block).map((value) => ({ ...value, inherited: false }));
-	const component = block.referenceComponent;
+	// component blocks are markRaw, so their referenceComponent comes back as the computed ref, not the block
+	const component = unref(block.referenceComponent);
 	if (!component) return own;
 	const ownPaths = new Set(own.map((value) => value.path));
 	const inherited = getSearchEntries(component, storedValues)
