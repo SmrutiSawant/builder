@@ -15,6 +15,7 @@ from frappe.apps import get_apps as get_permitted_apps
 from frappe.core.doctype.file.file import get_local_image
 from frappe.core.doctype.file.utils import delete_file
 from frappe.model.document import Document
+from frappe.rate_limiter import rate_limit
 from frappe.utils.caching import redis_cache
 from frappe.utils.safe_exec import NamespaceDict, get_safe_globals
 from PIL import Image
@@ -23,6 +24,7 @@ from werkzeug.wrappers import Response
 from builder import builder_analytics
 from builder.builder.doctype.builder_page.builder_page import BuilderPageRenderer
 from builder.builder.doctype.builder_snapshot import builder_snapshot
+from builder.form_submission import FormSubmission
 from builder.utils import compact_json, has_page_read, has_page_write, normalize_renamed_doc
 
 
@@ -783,6 +785,14 @@ def get_page_ctr(
 		to_date=to_date,
 		route_filter_type=route_filter_type,
 	)
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+@rate_limit(limit=5, seconds=60)
+def submit_form(send_to: str, data: dict):
+	"""Deliver a published form's submission to the destinations set in its Form section."""
+	path = urlparse(frappe.request.headers.get("Referer") or "").path or "/"
+	FormSubmission(send_to, data, path).deliver()
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])

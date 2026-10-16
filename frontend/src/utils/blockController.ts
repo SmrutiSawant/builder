@@ -110,6 +110,9 @@ const blockController = {
 	isRadioGroup: () => {
 		return blockController.isBlockSelected() && blockController.getFirstSelectedBlock().isRadioGroup();
 	},
+	isForm: () => {
+		return blockController.isBlockSelected() && blockController.getFirstSelectedBlock().isForm();
+	},
 	getAttribute: (attribute: string) => {
 		let attributeValue = "__initial__" as StyleValue;
 		canvasStore.activeCanvas?.selectedBlocks.forEach((block) => {

@@ -1,9 +1,8 @@
 import type Block from "@/block";
 import AttributePropertyControl from "@/components/Controls/AttributePropertyControl.vue";
 import Autocomplete from "@/components/Controls/Autocomplete.vue";
-import { linkablePages } from "@/data/allWebPages";
+import { getLinkablePageOptions, linkablePages } from "@/data/allWebPages";
 import useCanvasStore from "@/stores/canvasStore";
-import { BuilderPage } from "@/types/doctypes";
 import blockController from "@/utils/blockController";
 import { Switch } from "frappe-ui";
 import { computed } from "vue";
@@ -20,11 +19,6 @@ const getSectionOptions = () => {
 	const rootBlock = useCanvasStore().getRootBlock();
 	return [...new Set(rootBlock ? getSectionIds(rootBlock) : [])].map((id) => toOption(`#${id}`));
 };
-
-const getPageOptions = () =>
-	(linkablePages.data || [])
-		.filter((page: BuilderPage) => page.route)
-		.map((page: BuilderPage) => toOption(`/${page.route}`));
 
 const getHref = () => String(blockController.getAttribute("href") || "");
 
@@ -57,7 +51,7 @@ const linkSectionProperties = [
 				label: __("Link To"),
 				propertyKey: "href",
 				component: Autocomplete,
-				options: getPageOptions(),
+				options: getLinkablePageOptions(),
 				// pages can be added, deleted or given a new route while the editor stays open
 				onFocus: () => linkablePages.reload(),
 				showInputAsOption: true,
