@@ -112,3 +112,11 @@ select:has(> option[value=""]:checked) {
 select:has(> option[value=""]:checked) > option:not([value=""]) {
 	color: CanvasText;
 }
+/* A block in a form shows only in the form states picked in Form > Show in. The form's submit
+   script sets its data-state, and a form without one is in its default state. */
+form:not([data-state]) [data-form-states]:not([data-form-states~="default"]),
+form[data-state="sending"] [data-form-states]:not([data-form-states~="sending"]),
+form[data-state="success"] [data-form-states]:not([data-form-states~="success"]),
+form[data-state="error"] [data-form-states]:not([data-form-states~="error"]) {
+	display: none;
+}

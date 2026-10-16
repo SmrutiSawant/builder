@@ -1621,8 +1621,18 @@ def append_state_style(style_obj, style_tag, style_class, device="desktop"):
 		if ":" in key:
 			state, property = key.split(":", 1)
 			css_property = camel_case_to_kebab_case(property)
-			style_string = f".{style_class}:{state} {{ {css_property}: {value}; }}"
+			style_string = f"{get_state_selector(style_class, state)} {{ {css_property}: {value}; }}"
 			style_tag.append(wrap_with_media_query(style_string, device))
+
+
+FORM_STATES = ("sending", "success", "error")
+
+
+def get_state_selector(style_class: str, state: str) -> str:
+	# a form state is the data-state its form's submit script sets, on the form and everything in it
+	if state in FORM_STATES:
+		return f'form[data-state="{state}"] .{style_class}, form.{style_class}[data-state="{state}"]'
+	return f".{style_class}:{state}"
 
 
 def get_font_family(font: str) -> str:

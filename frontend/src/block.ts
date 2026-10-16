@@ -8,6 +8,7 @@ import {
 } from "@/utils/block/componentInstance";
 import { findBlockInTree, resetBlock } from "@/utils/block/tree";
 import type { SpacingType } from "@/utils/cssUtils";
+import { FORM_STATES } from "@/utils/formStates";
 import {
 	addPxToNumber,
 	cssUrl,
@@ -461,6 +462,26 @@ class Block implements BlockOptions {
 		this.setEffectiveAttribute(
 			"data-send-to",
 			destinations.length ? JSON.stringify(destinations) : undefined,
+		);
+	}
+	getFormBlock(): Block | null {
+		return this.isForm() ? this : this.getParentBlock()?.getFormBlock() || null;
+	}
+	// the state its form shows on the canvas, picked in Form > State; it is never saved
+	getFormStatePreview() {
+		const form = this.getFormBlock();
+		return (form && useCanvasStore().formStatePreviews[form.blockId]) || "default";
+	}
+	// a block without the attribute shows in every state
+	getFormStates(): string[] {
+		const states = this.getEffectiveAttribute("data-form-states");
+		return states == null ? FORM_STATES : String(states).split(" ").filter(Boolean);
+	}
+	setFormStates(states: string[]) {
+		const shownStates = FORM_STATES.filter((state) => states.includes(state));
+		this.setEffectiveAttribute(
+			"data-form-states",
+			shownStates.length === FORM_STATES.length ? undefined : shownStates.join(" "),
 		);
 	}
 	getOptions() {

@@ -113,6 +113,15 @@ const blockController = {
 	isForm: () => {
 		return blockController.isBlockSelected() && blockController.getFirstSelectedBlock().isForm();
 	},
+	isInForm: () => {
+		return (
+			blockController.isBlockSelected() && Boolean(blockController.getFirstSelectedBlock().getFormBlock())
+		);
+	},
+	setFormStatePreview: (state: string) => {
+		const form = blockController.getFirstSelectedBlock().getFormBlock();
+		if (form) canvasStore.formStatePreviews[form.blockId] = state;
+	},
 	getAttribute: (attribute: string) => {
 		let attributeValue = "__initial__" as StyleValue;
 		canvasStore.activeCanvas?.selectedBlocks.forEach((block) => {

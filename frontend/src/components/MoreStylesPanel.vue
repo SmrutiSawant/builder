@@ -63,6 +63,7 @@ import {
 	isValidCSSPropertyName,
 	type StyleControlConfig,
 } from "@/utils/cssMetadata";
+import { FORM_STYLE_STATES } from "@/utils/formStates";
 import {
 	getStylePropertiesWithControls,
 	getStylePropertiesWithoutControls,
@@ -77,7 +78,7 @@ import {
 import { Combobox, type ComboboxOptionValue, type SelectionExposed } from "frappe-ui";
 import { computed, nextTick, reactive, ref, watch } from "vue";
 
-const STATES = ["hover", "active", "focus"];
+const STATES = ["hover", "active", "focus", ...FORM_STYLE_STATES];
 
 const canvasStore = useCanvasStore();
 const propertySearch = ref("");

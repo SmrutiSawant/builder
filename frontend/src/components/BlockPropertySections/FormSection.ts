@@ -2,9 +2,11 @@ import type Block from "@/block";
 import AttributePropertyControl from "@/components/Controls/AttributePropertyControl.vue";
 import Autocomplete from "@/components/Controls/Autocomplete.vue";
 import FormDestinationsInput from "@/components/Controls/FormDestinationsInput.vue";
+import FormStatesInput from "@/components/Controls/FormStatesInput.vue";
 import InlineInput from "@/components/Controls/InlineInput.vue";
 import { getLinkablePageOptions, linkablePages } from "@/data/allWebPages";
 import blockController from "@/utils/blockController";
+import { formStates } from "@/utils/formStates";
 import { __ } from "@/translation";
 
 const formSectionProperties = [
@@ -24,6 +26,7 @@ const formSectionProperties = [
 					.getSelectedBlocks()
 					.forEach((block: Block) => block.setFormDestinations(destinations)),
 		},
+		condition: () => blockController.isForm(),
 	},
 	{
 		component: AttributePropertyControl,
@@ -42,6 +45,7 @@ const formSectionProperties = [
 			};
 		},
 		searchKeyWords: "Redirect, After Submit, Thank You, Success Page, URL, form",
+		condition: () => blockController.isForm(),
 	},
 	{
 		component: InlineInput,
@@ -58,11 +62,44 @@ const formSectionProperties = [
 			"update:modelValue": (val: string) =>
 				blockController.setEffectiveAttribute("data-tracking-id", val || undefined),
 		},
+		condition: () => blockController.isForm(),
+	},
+	{
+		component: InlineInput,
+		getProps: () => {
+			return {
+				label: __("State"),
+				type: "select",
+				options: formStates,
+				modelValue: blockController.getFirstSelectedBlock().getFormStatePreview(),
+				description: __("Shows the form on the canvas as visitors see it in this state."),
+			};
+		},
+		searchKeyWords: "State, Form State, Sending, Loading, Success, Error, Preview, form",
+		events: {
+			"update:modelValue": (state: string) => blockController.setFormStatePreview(state),
+		},
+	},
+	{
+		component: FormStatesInput,
+		getProps: () => {
+			return {
+				label: __("Show in"),
+				modelValue: blockController.getFirstSelectedBlock().getFormStates(),
+				description: __("The form states this block is visible in."),
+			};
+		},
+		searchKeyWords: "Show in, Visible, Hide, Success Message, Error Message, Sending, State, form",
+		events: {
+			"update:modelValue": (states: string[]) =>
+				blockController.getSelectedBlocks().forEach((block: Block) => block.setFormStates(states)),
+		},
+		condition: () => !blockController.isForm(),
 	},
 ];
 
 export default {
 	name: __("Form"),
 	properties: formSectionProperties,
-	condition: () => blockController.isForm(),
+	condition: () => blockController.isInForm(),
 };
