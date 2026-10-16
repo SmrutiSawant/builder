@@ -2235,6 +2235,30 @@ component.update({
 		self.assertIn("background-color: black", css)
 		self.assertNotIn("background: red", css)
 
+	def test_renders_form_state_styles_under_the_forms_data_state(self):
+		from builder.builder.doctype.builder_page.builder_page import get_block_html
+
+		blocks = [
+			{
+				"blockId": "form",
+				"element": "form",
+				"baseStyles": {"success:backgroundColor": "green"},
+				"children": [
+					{"blockId": "button", "element": "button", "baseStyles": {"sending:opacity": "0.5"}}
+				],
+			}
+		]
+
+		_, css, _, _ = get_block_html(blocks)
+
+		self.assertRegex(
+			css,
+			r'form\[data-state="sending"\] \.fb-\w+, form\.fb-\w+\[data-state="sending"\] \{ opacity: 0.5; \}',
+		)
+		self.assertRegex(css, r'form\[data-state="success"\] \.fb-\w+, form\.fb-\w+\[data-state="success"\]')
+		self.assertNotIn(":sending", css)
+		self.assertNotIn(":success", css)
+
 	def test_renders_legacy_raw_styles_from_component(self):
 		from builder.builder.doctype.builder_page.builder_page import get_block_html
 
