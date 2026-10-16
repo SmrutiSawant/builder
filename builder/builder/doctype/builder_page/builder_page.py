@@ -36,6 +36,7 @@ from builder.builder.doctype.builder_snapshot.builder_snapshot import (
 from builder.builder.doctype.user_font.user_font import get_all_user_fonts
 from builder.editor_demo import is_demo_page
 from builder.export_import_standard_page import export_page_as_standard
+from builder.form_submission import seal_destinations
 from builder.hooks import builder_path
 from builder.html_preview_image import generate_preview
 from builder.template_sync import delete_template_page_fixture, export_template_group
@@ -1114,6 +1115,11 @@ def create_html_tag(block: dict, state: dict, ancestor_font: str | None = None) 
 	# Stamp the live blockId so duplicated blocks each get their own tracking id.
 	if tag.get("data-track") and block.get("blockId"):
 		tag["data-track"] = block.get("blockId")
+
+	# the form's emails and webhook URLs stay unreadable on the page; a fresh dict, since
+	# tag.attrs is the block's own and a repeater renders the same block again
+	if tag.get("data-send-to"):
+		tag.attrs = {**tag.attrs, "data-send-to": seal_destinations(tag["data-send-to"])}
 
 	classes = build_tag_classes(block, state, ancestor_font=ancestor_font)
 	tag.attrs["class"] = " ".join(classes)

@@ -4,6 +4,7 @@ import customAttributesSection from "@/components/BlockPropertySections/CustomAt
 import dataKeySection from "@/components/BlockPropertySections/DataKeySection";
 import dimensionSection from "@/components/BlockPropertySections/DimensionSection";
 import editorConfigSection from "@/components/BlockPropertySections/EditorConfigSection";
+import formSection from "@/components/BlockPropertySections/FormSection";
 import HTMLOptionsSection from "@/components/BlockPropertySections/HTMLOptionsSection";
 import imageOptionsSection from "@/components/BlockPropertySections/ImageOptionsSection";
 import inputOptionsSection from "@/components/BlockPropertySections/InputOptionsSection";
@@ -49,6 +50,7 @@ const sections = [
 	videoOptionsSection,
 	inputOptionsSection,
 	radioGroupOptionsSection,
+	formSection,
 	typographySection,
 	styleSection,
 	dimensionSection,

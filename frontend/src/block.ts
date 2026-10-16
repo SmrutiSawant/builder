@@ -471,6 +471,21 @@ class Block implements BlockOptions {
 			if (newNames.has(name)) radio.setEffectiveAttribute("name", newNames.get(name));
 		});
 	}
+	// kept as JSON on the form; the published page seals it so visitors can't read or change it
+	getFormDestinations(): FormDestination[] {
+		try {
+			const destinations = JSON.parse(String(this.getEffectiveAttribute("data-send-to") || "[]"));
+			return Array.isArray(destinations) ? destinations : [];
+		} catch {
+			return [];
+		}
+	}
+	setFormDestinations(destinations: FormDestination[]) {
+		this.setEffectiveAttribute(
+			"data-send-to",
+			destinations.length ? JSON.stringify(destinations) : undefined,
+		);
+	}
 	getOptions() {
 		return this.getChildren().filter((child) => child.getElement() === "option");
 	}
