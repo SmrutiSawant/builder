@@ -11,17 +11,20 @@ MAX_FIELDS = 50
 MAX_VALUE_LENGTH = 5000
 
 
+def parse_destinations(destinations: str | None) -> list[dict]:
+	try:
+		parsed = json.loads(destinations or "[]")
+	except ValueError:
+		return []
+	return [d for d in parsed if isinstance(d, dict)] if isinstance(parsed, list) else []
+
+
 def seal_destinations(destinations: str, fieldnames: list[str]) -> str:
 	"""A DocType destination is sealed with the form's own field names: the only fields
 	a visitor's submission may set on the record it creates."""
-	try:
-		parsed = json.loads(destinations)
-	except ValueError:
-		parsed = []
 	sealed = [
 		d | {"fields": fieldnames} if d.get("type") == "doctype" else d
-		for d in (parsed if isinstance(parsed, list) else [])
-		if isinstance(d, dict)
+		for d in parse_destinations(destinations)
 	]
 	return encrypt(json.dumps(sealed))
 
@@ -57,15 +60,10 @@ def walk_blocks(blocks: list | dict):
 
 
 def get_destination_doctypes(destinations: str | None) -> set[str]:
-	try:
-		parsed = json.loads(destinations or "[]")
-	except ValueError:
-		return set()
-	return {
-		cstr(d.get("value")).strip()
-		for d in (parsed if isinstance(parsed, list) else [])
-		if isinstance(d, dict) and d.get("type") == "doctype" and cstr(d.get("value")).strip()
+	doctypes = {
+		cstr(d.get("value")).strip() for d in parse_destinations(destinations) if d.get("type") == "doctype"
 	}
+	return doctypes - {""}
 
 
 def validate_new_form_doctypes(blocks: tuple, blocks_before: tuple):
@@ -140,6 +138,9 @@ class FormSubmission:
 		return [value for value in values if value]
 
 	def save(self, doctype: str, fieldnames: list[str]):
+		# checked again here, since an AI edit saves the page without its validation
+		if not is_form_doctype(doctype):
+			frappe.throw(_("This form can't be submitted."), frappe.PermissionError)
 		meta = frappe.get_meta(doctype)
 		doc = frappe.new_doc(doctype)
 		for fieldname in fieldnames:

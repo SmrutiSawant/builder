@@ -10,6 +10,7 @@ from builder.form_doctype import create_form_doctype
 from builder.form_submission import (
 	FormSubmission,
 	list_form_doctypes,
+	seal_destinations,
 	validate_form_doctype,
 	validate_new_form_doctypes,
 )
@@ -80,6 +81,12 @@ class TestFormSubmission(FrappeTestCase):
 		).deliver()
 
 		self.assertIsNone(frappe.get_last_doc(DOCTYPE).notes)
+
+	def test_refuses_a_framework_doctype_a_page_was_saved_with(self):
+		sealed = seal_destinations(json.dumps([{"type": "doctype", "value": "User"}]), ["email"])
+
+		with self.assertRaises(frappe.PermissionError):
+			FormSubmission(sealed, {"email": "guest@example.com"}, "/").deliver()
 
 	def test_lists_doctypes_a_form_can_save_to(self):
 		doctypes = list_form_doctypes()
