@@ -68,7 +68,7 @@ const formSectionProperties = [
 		component: InlineInput,
 		getProps: () => {
 			return {
-				label: __("State"),
+				label: __("Preview"),
 				type: "select",
 				options: formStates,
 				modelValue: blockController.getFirstSelectedBlock().getFormStatePreview(),

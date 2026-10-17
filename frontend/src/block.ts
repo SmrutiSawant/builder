@@ -510,6 +510,23 @@ class Block implements BlockOptions {
 			shownStates.length === FORM_STATES.length ? undefined : shownStates.join(" "),
 		);
 	}
+	// a button's variants are its layers, each shown only in some form states (Submit, a spinner, Thank you)
+	hasFormStateVariants() {
+		return (
+			this.isButton() &&
+			this.getChildren().some((child) => child.getEffectiveAttribute("data-form-states") != null)
+		);
+	}
+	getFormStateVariant(state: string) {
+		return this.getChildren().find((child) => child.getFormStates().includes(state));
+	}
+	// a state shows one variant, so picking it hides the others in that state
+	setFormStateVariant(state: string, variantId: string) {
+		this.getChildren().forEach((child) => {
+			const states = child.getFormStates().filter((shownState) => shownState !== state);
+			child.setFormStates(child.blockId === variantId ? [...states, state] : states);
+		});
+	}
 	getOptions() {
 		return this.getChildren().filter((child) => child.getElement() === "option");
 	}
