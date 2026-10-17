@@ -5,6 +5,7 @@ import dataKeySection from "@/components/BlockPropertySections/DataKeySection";
 import dimensionSection from "@/components/BlockPropertySections/DimensionSection";
 import editorConfigSection from "@/components/BlockPropertySections/EditorConfigSection";
 import formSection from "@/components/BlockPropertySections/FormSection";
+import formStateSection from "@/components/BlockPropertySections/FormStateSection";
 import HTMLOptionsSection from "@/components/BlockPropertySections/HTMLOptionsSection";
 import imageOptionsSection from "@/components/BlockPropertySections/ImageOptionsSection";
 import inputOptionsSection from "@/components/BlockPropertySections/InputOptionsSection";
@@ -51,6 +52,7 @@ const sections = [
 	inputOptionsSection,
 	radioGroupOptionsSection,
 	formSection,
+	formStateSection,
 	typographySection,
 	styleSection,
 	dimensionSection,

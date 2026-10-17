@@ -121,6 +121,11 @@ const blockController = {
 			blockController.isBlockSelected() && Boolean(blockController.getFirstSelectedBlock().getFormBlock())
 		);
 	},
+	hasFormStateVariants: () => {
+		return (
+			blockController.isBlockSelected() && blockController.getFirstSelectedBlock().hasFormStateVariants()
+		);
+	},
 	setFormStatePreview: (state: string) => {
 		const form = blockController.getFirstSelectedBlock().getFormBlock();
 		if (form) canvasStore.formStatePreviews[form.blockId] = state;
