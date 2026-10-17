@@ -42,8 +42,12 @@
 						@increment="incrementValue"
 						@decrement="decrementValue" />
 
+					<!-- a suffix takes the clear button's place, for a field with an action of its own -->
+					<div v-if="$slots.suffix" class="mr-2 flex items-center">
+						<slot name="suffix" />
+					</div>
 					<button
-						v-if="hasValue"
+						v-else-if="hasValue"
 						class="mr-2 flex-shrink-0 cursor-pointer text-ink-gray-4 hover:text-ink-gray-5"
 						tabindex="-1"
 						@click.stop="clearSelection"

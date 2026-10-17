@@ -2,12 +2,13 @@
 	<div class="flex items-start justify-between gap-2">
 		<InputLabel class="h-7 w-1/3 min-w-[88px] shrink-0" :description="description">{{ label }}</InputLabel>
 		<div ref="list" class="flex w-full min-w-0 flex-col gap-1.5">
-			<BuilderInput
+			<component
+				:is="destination.type === 'doctype' ? Autocomplete : 'BuilderInput'"
 				v-for="(destination, index) in modelValue"
 				:key="index"
+				v-bind="getFieldProps(destination)"
 				:modelValue="destination.value"
 				:placeholder="destinationTypes[destination.type].placeholder"
-				hideClearButton
 				@update:modelValue="(value: string) => update(index, value)"
 				@keydown.stop>
 				<template #prefix>
@@ -27,7 +28,7 @@
 						<span class="lucide-x size-3.5" aria-hidden="true" />
 					</button>
 				</template>
-			</BuilderInput>
+			</component>
 			<Dropdown :options="addOptions" size="sm">
 				<Button
 					variant="subtle"
@@ -41,7 +42,9 @@
 </template>
 
 <script setup lang="ts">
+import Autocomplete from "@/components/Controls/Autocomplete.vue";
 import InputLabel from "@/components/Controls/InputLabel.vue";
+import { formDoctypes } from "@/data/formDoctypes";
 import { __ } from "@/translation";
 import { Dropdown } from "frappe-ui";
 import { ref } from "vue";
@@ -59,7 +62,27 @@ const emit = defineEmits<{
 const destinationTypes = {
 	email: { label: __("Email"), icon: "lucide-mail", placeholder: __("Email") },
 	webhook: { label: __("Webhook"), icon: "lucide-webhook", placeholder: "https://" },
+	doctype: { label: __("DocType"), icon: "lucide-database", placeholder: __("DocType") },
 };
+
+// a DocType already picked isn't offered again, or each submission would be saved twice
+const getDoctypeOptions = (picked: string) =>
+	(formDoctypes.data || [])
+		.filter(
+			(doctype: string) =>
+				doctype === picked || !props.modelValue.some((d) => d.type === "doctype" && d.value === doctype),
+		)
+		.map((doctype: string) => ({ label: doctype, value: doctype }));
+
+// a DocType is picked from the ones the user may save to; the server checks it again on save
+const getFieldProps = (destination: FormDestination) =>
+	destination.type === "doctype"
+		? {
+				options: getDoctypeOptions(destination.value),
+				allowArbitraryValue: false,
+				onFocus: () => formDoctypes.fetch(),
+			}
+		: { hideClearButton: true };
 
 const list = ref<HTMLElement | null>(null);
 

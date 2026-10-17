@@ -3,6 +3,7 @@ import json
 import frappe
 import requests
 from frappe import _
+from frappe.model import attachment_fieldtypes, no_value_fields
 from frappe.utils import cstr, escape_html, validate_email_address
 from frappe.utils.password import decrypt, encrypt
 
@@ -10,8 +11,19 @@ MAX_FIELDS = 50
 MAX_VALUE_LENGTH = 5000
 
 
-def seal_destinations(destinations: str) -> str:
-	return encrypt(destinations)
+def seal_destinations(destinations: str, fieldnames: list[str]) -> str:
+	"""A DocType destination is sealed with the form's own field names: the only fields
+	a visitor's submission may set on the record it creates."""
+	try:
+		parsed = json.loads(destinations)
+	except ValueError:
+		parsed = []
+	sealed = [
+		d | {"fields": fieldnames} if d.get("type") == "doctype" else d
+		for d in (parsed if isinstance(parsed, list) else [])
+		if isinstance(d, dict)
+	]
+	return encrypt(json.dumps(sealed))
 
 
 def unseal_destinations(sealed: str) -> list[dict]:
@@ -24,6 +36,82 @@ def unseal_destinations(sealed: str) -> list[dict]:
 	return [d for d in destinations if isinstance(d, dict)] if isinstance(destinations, list) else []
 
 
+def collect_form_doctypes(*blocks: str | list | None) -> set[str]:
+	"""The DocTypes the forms in these block trees save their submissions to."""
+	doctypes = set()
+	for tree in blocks:
+		# most pages have no form, so they skip the parse
+		if isinstance(tree, str) and "data-send-to" not in tree:
+			continue
+		for block in walk_blocks(frappe.parse_json(tree) or []):
+			for attributes in (block.get("attributes"), block.get("customAttributes")):
+				doctypes |= get_destination_doctypes((attributes or {}).get("data-send-to"))
+	return doctypes
+
+
+def walk_blocks(blocks: list | dict):
+	for block in blocks if isinstance(blocks, list) else [blocks]:
+		if isinstance(block, dict):
+			yield block
+			yield from walk_blocks(block.get("children") or [])
+
+
+def get_destination_doctypes(destinations: str | None) -> set[str]:
+	try:
+		parsed = json.loads(destinations or "[]")
+	except ValueError:
+		return set()
+	return {
+		cstr(d.get("value")).strip()
+		for d in (parsed if isinstance(parsed, list) else [])
+		if isinstance(d, dict) and d.get("type") == "doctype" and cstr(d.get("value")).strip()
+	}
+
+
+def validate_new_form_doctypes(blocks: tuple, blocks_before: tuple):
+	"""Check only the DocTypes these blocks newly save to, so editing a page someone else
+	pointed at a DocType doesn't need that person's permissions."""
+	for doctype in collect_form_doctypes(*blocks) - collect_form_doctypes(*blocks_before):
+		validate_form_doctype(doctype)
+
+
+def validate_form_doctype(doctype: str):
+	# a guest's submission is saved with ignore_permissions, so only someone who can create
+	# these records may hand that out
+	if not is_form_doctype(doctype):
+		frappe.throw(_("A form can't save its submissions to {0}").format(doctype))
+	if not frappe.has_permission(doctype, "create"):
+		frappe.throw(
+			_("You need permission to create {0} records to save a form's submissions to it").format(doctype),
+			frappe.PermissionError,
+		)
+
+
+def is_form_doctype(doctype: str) -> bool:
+	if not frappe.db.exists("DocType", doctype):
+		return False
+	meta = frappe.get_meta(doctype)
+	if meta.istable or meta.issingle or meta.is_virtual:
+		return False
+	# the framework's and Builder's own records (users, scripts, pages) are never a visitor's to create
+	return bool(meta.custom) or frappe.get_doctype_app(doctype) not in ("frappe", "builder")
+
+
+def list_form_doctypes() -> list[str]:
+	"""The DocTypes this user may point a form at; is_form_doctype, as one query."""
+	modules = frappe.get_all(
+		"Module Def", filters={"app_name": ["not in", ["frappe", "builder"]]}, pluck="name"
+	)
+	names = frappe.get_all(
+		"DocType",
+		filters={"istable": 0, "issingle": 0, "is_virtual": 0},
+		or_filters={"custom": 1, "module": ["in", modules or [""]]},
+		pluck="name",
+		order_by="name",
+	)
+	return [name for name in names if frappe.has_permission(name, "create")]
+
+
 class FormSubmission:
 	"""A visitor's submission of a published form. Its destinations arrive sealed by the
 	page render, so the visitor can neither read nor change where it is delivered."""
@@ -31,13 +119,15 @@ class FormSubmission:
 	def __init__(self, sealed_destinations: str, data: dict, path: str):
 		self.destinations = unseal_destinations(sealed_destinations)
 		self.data = {
-			key[:140]: cstr(value)[:MAX_VALUE_LENGTH]
-			for key, value in list(data.items())[:MAX_FIELDS]
-			if key
+			key[:140]: cstr(value)[:MAX_VALUE_LENGTH] for key, value in list(data.items())[:MAX_FIELDS] if key
 		}
 		self.path = path
 
 	def deliver(self):
+		# saved first, so a submission its DocType rejects isn't emailed or posted either
+		for destination in self.destinations:
+			if destination.get("type") == "doctype" and destination.get("value"):
+				self.save(destination["value"], destination.get("fields") or [])
 		if recipients := [e for e in self.get_destinations("email") if validate_email_address(e)]:
 			self.send_email(recipients)
 		for url in self.get_destinations("webhook"):
@@ -48,6 +138,16 @@ class FormSubmission:
 			cstr(d.get("value")).strip() for d in self.destinations if d.get("type") == destination_type
 		)
 		return [value for value in values if value]
+
+	def save(self, doctype: str, fieldnames: list[str]):
+		meta = frappe.get_meta(doctype)
+		doc = frappe.new_doc(doctype)
+		for fieldname in fieldnames:
+			df = meta.get_field(fieldname)
+			if df and fieldname in self.data and is_form_field(df):
+				# a checkbox is only submitted when it is checked, whatever its value
+				doc.set(fieldname, 1 if df.fieldtype == "Check" else self.data[fieldname])
+		doc.insert(ignore_permissions=True)
 
 	def send_email(self, recipients: list[str]):
 		try:
@@ -67,6 +167,10 @@ class FormSubmission:
 			for key, value in self.data.items()
 		)
 		return f"<table>{rows}</table>"
+
+
+def is_form_field(df) -> bool:
+	return df.fieldtype not in no_value_fields and df.fieldtype not in attachment_fieldtypes
 
 
 def post_to_webhook(url: str, data: dict):

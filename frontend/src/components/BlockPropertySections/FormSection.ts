@@ -15,11 +15,11 @@ const formSectionProperties = [
 		getProps: () => {
 			return {
 				label: __("Send to"),
-				description: __("Each submission is emailed or posted to these destinations."),
+				description: __("Each submission is saved, emailed or posted to these destinations."),
 				modelValue: blockController.getFirstSelectedBlock().getFormDestinations(),
 			};
 		},
-		searchKeyWords: "Send to, Email, Webhook, Submissions, Notify, Destination, form",
+		searchKeyWords: "Send to, Email, Webhook, DocType, Save, Database, Submissions, Notify, Destination, form",
 		events: {
 			"update:modelValue": (destinations: FormDestination[]) =>
 				blockController

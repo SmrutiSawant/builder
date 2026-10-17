@@ -21,7 +21,7 @@ from werkzeug.wrappers import Response
 from builder import builder_analytics
 from builder.builder.doctype.builder_page.builder_page import BuilderPageRenderer
 from builder.builder.doctype.builder_snapshot import builder_snapshot
-from builder.form_submission import FormSubmission
+from builder.form_submission import FormSubmission, list_form_doctypes
 from builder.public_fetch import public_session
 from builder.utils import compact_json, has_page_read, has_page_write, normalize_renamed_doc
 
@@ -767,6 +767,12 @@ def submit_form(send_to: str, data: dict):
 	"""Deliver a published form's submission to the destinations set in its Form section."""
 	path = urlparse(frappe.request.headers.get("Referer") or "").path or "/"
 	FormSubmission(send_to, data, path).deliver()
+
+
+@frappe.whitelist()
+def get_form_doctypes() -> list[str]:
+	"""The DocTypes the user can pick in a form's Send to."""
+	return list_form_doctypes()
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
