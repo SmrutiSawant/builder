@@ -106,7 +106,7 @@
 							:icon-left="actionButton.icon"
 							variant="ghost"
 							class="w-full justify-start rounded-none text-sm"
-							@click="actionButton.handler">
+							@click="runAction">
 							{{ actionButton.label }}
 						</Button>
 					</div>
@@ -275,6 +275,12 @@ const resolveLabelStyle = (option: Option): StyleValue | undefined =>
 	typeof option.labelStyle === "function" ? option.labelStyle() : option.labelStyle;
 
 const clearSelection = () => emit("update:modelValue", null);
+
+// an action that opens a dialog would otherwise leave the options open behind it
+const runAction = () => {
+	isOpen.value = false;
+	props.actionButton?.handler?.();
+};
 
 const getInputValue = (event: Event) => (event.target as HTMLInputElement)?.value?.trim();
 
