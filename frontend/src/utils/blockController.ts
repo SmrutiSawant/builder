@@ -110,6 +110,9 @@ const blockController = {
 	isRadioGroup: () => {
 		return blockController.isBlockSelected() && blockController.getFirstSelectedBlock().isRadioGroup();
 	},
+	isFormField: () => {
+		return blockController.isBlockSelected() && blockController.getFirstSelectedBlock().isFormField();
+	},
 	isForm: () => {
 		return blockController.isBlockSelected() && blockController.getFirstSelectedBlock().isForm();
 	},
