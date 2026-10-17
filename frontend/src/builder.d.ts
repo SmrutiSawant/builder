@@ -45,7 +45,7 @@ declare interface BlockAttributeMap {
 }
 
 declare interface FormDestination {
-	type: "email" | "webhook";
+	type: "email" | "webhook" | "doctype";
 	value: string;
 }
 

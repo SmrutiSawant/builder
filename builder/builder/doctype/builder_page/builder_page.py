@@ -36,7 +36,7 @@ from builder.builder.doctype.builder_snapshot.builder_snapshot import (
 from builder.builder.doctype.user_font.user_font import get_all_user_fonts
 from builder.editor_demo import is_demo_page
 from builder.export_import_standard_page import export_page_as_standard
-from builder.form_submission import seal_destinations
+from builder.form_submission import seal_destinations, validate_new_form_doctypes
 from builder.hooks import builder_path
 from builder.html_preview_image import generate_preview
 from builder.template_sync import delete_template_page_fixture, export_template_group
@@ -227,6 +227,7 @@ class BuilderPage(WebsiteGenerator):
 	def validate(self):
 		super().validate()  # WebsiteGenerator route normalization
 		self.validate_route_variables()
+		self.validate_form_doctypes()
 
 		# pages of shipped template groups can only be edited in developer mode
 		if (
@@ -245,6 +246,15 @@ class BuilderPage(WebsiteGenerator):
 			# frappe trims slashes and dots but keeps whitespace, which reaches URLs as %20
 			self.route = self.route.strip("/. \t\n")
 		super().set_route()
+
+	def validate_form_doctypes(self):
+		if is_bulk_import():
+			return
+		before = self.get_doc_before_save()
+		validate_new_form_doctypes(
+			(self.blocks, self.draft_blocks),
+			(before.blocks, before.draft_blocks) if before else (),
+		)
 
 	def validate_route_variables(self):
 		if not self.route or not (":" in self.route or "<" in self.route):
@@ -939,6 +949,7 @@ def build_tag(
 			tag, block, data_key, state, ancestor_font=resolved_font, ancestor_italic=resolved_italic
 		)
 
+	seal_form_destinations(tag)
 	attach_client_script(tag, block, state)
 
 	# Add body scripts for body element
@@ -947,6 +958,20 @@ def build_tag(
 		tag.append("{% include 'templates/generators/webpage_scripts.html' %}")
 
 	return tag
+
+
+def seal_form_destinations(tag: bs.Tag):
+	"""Keep a form's emails, webhook URLs and DocType unreadable on the page. Sealed once its
+	children are rendered, so the form's field names are sealed with them."""
+	if not tag.get("data-send-to"):
+		return
+	fieldnames = list(
+		dict.fromkeys(
+			field["name"] for field in tag.find_all(["input", "select", "textarea"], attrs={"name": True})
+		)
+	)
+	# a fresh dict, since tag.attrs is the block's own and a repeater renders the same block again
+	tag.attrs = {**tag.attrs, "data-send-to": seal_destinations(tag["data-send-to"], fieldnames)}
 
 
 def get_block_context(block: dict, props: dict, component_id: str | None) -> dict:
@@ -1111,11 +1136,6 @@ def create_html_tag(block: dict, state: dict, ancestor_font: str | None = None) 
 	# Stamp the live blockId so duplicated blocks each get their own tracking id.
 	if tag.get("data-track") and block.get("blockId"):
 		tag["data-track"] = block.get("blockId")
-
-	# the form's emails and webhook URLs stay unreadable on the page; a fresh dict, since
-	# tag.attrs is the block's own and a repeater renders the same block again
-	if tag.get("data-send-to"):
-		tag.attrs = {**tag.attrs, "data-send-to": seal_destinations(tag["data-send-to"])}
 
 	classes = build_tag_classes(block, state, ancestor_font=ancestor_font)
 	tag.attrs["class"] = " ".join(classes)
