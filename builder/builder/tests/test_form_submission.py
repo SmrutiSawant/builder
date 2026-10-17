@@ -125,6 +125,8 @@ class TestFormDoctype(FrappeTestCase):
 			fieldnames = create_form_doctype("Builder Test Made Form", fields)
 		doctype = get_doc.call_args.args[0]
 		self.assertEqual(doctype["custom"], 1)
+		# without autoname, Frappe warns "Naming is not set", and that shows in place of a real error
+		self.assertEqual(doctype["autoname"], "hash")
 		return fieldnames, {field["fieldname"]: field for field in doctype["fields"]}
 
 	def test_makes_a_field_for_each_input(self):

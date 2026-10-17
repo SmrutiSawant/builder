@@ -48,6 +48,7 @@ def create_form_doctype(doctype: str, fields: list[dict]) -> list[str]:
 			"module": "Builder",
 			"custom": 1,
 			"naming_rule": "Random",
+			"autoname": "hash",
 			# inputs that share a name (a group of checkboxes) submit as one field
 			"fields": list({docfield["fieldname"]: docfield for docfield in docfields}.values()),
 			# a guest saves through the form, so no one else needs to read the submissions
