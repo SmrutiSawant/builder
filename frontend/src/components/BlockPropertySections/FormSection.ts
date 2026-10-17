@@ -6,6 +6,7 @@ import FormStatesInput from "@/components/Controls/FormStatesInput.vue";
 import InlineInput from "@/components/Controls/InlineInput.vue";
 import { getLinkablePageOptions, linkablePages } from "@/data/allWebPages";
 import blockController from "@/utils/blockController";
+import { promptCreateFormDoctype } from "@/utils/dialogs";
 import { formStates } from "@/utils/formStates";
 import { __ } from "@/translation";
 
@@ -17,9 +18,11 @@ const formSectionProperties = [
 				label: __("Send to"),
 				description: __("Each submission is saved, emailed or posted to these destinations."),
 				modelValue: blockController.getFirstSelectedBlock().getFormDestinations(),
+				createDoctype: () => promptCreateFormDoctype(blockController.getFirstSelectedBlock()),
 			};
 		},
-		searchKeyWords: "Send to, Email, Webhook, DocType, Save, Database, Submissions, Notify, Destination, form",
+		searchKeyWords:
+			"Send to, Email, Webhook, DocType, Save, Database, Submissions, Notify, Destination, form",
 		events: {
 			"update:modelValue": (destinations: FormDestination[]) =>
 				blockController

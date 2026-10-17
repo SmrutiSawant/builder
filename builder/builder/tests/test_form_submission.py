@@ -1,10 +1,12 @@
 import json
 import re
+from unittest.mock import patch
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from builder.builder.doctype.builder_page.builder_page import get_block_html
+from builder.form_doctype import create_form_doctype
 from builder.form_submission import (
 	FormSubmission,
 	list_form_doctypes,
@@ -73,7 +75,9 @@ class TestFormSubmission(FrappeTestCase):
 	def test_sets_only_the_fields_the_form_has(self):
 		block = form_block([{"type": "doctype", "value": DOCTYPE}], [{"name": "full_name"}])
 
-		FormSubmission(sealed_destinations(block), {"full_name": "Grace", "notes": "sneaked in"}, "/").deliver()
+		FormSubmission(
+			sealed_destinations(block), {"full_name": "Grace", "notes": "sneaked in"}, "/"
+		).deliver()
 
 		self.assertIsNone(frappe.get_last_doc(DOCTYPE).notes)
 
@@ -106,3 +110,44 @@ class TestFormSubmission(FrappeTestCase):
 
 		with self.assertRaisesRegex(frappe.ValidationError, "can't save its submissions to User"):
 			page.insert()
+
+
+class TestFormDoctype(FrappeTestCase):
+	def make(self, fields: list[dict]) -> tuple[list[str], list[dict]]:
+		with patch("builder.form_doctype.frappe.get_doc") as get_doc:
+			fieldnames = create_form_doctype("Builder Test Made Form", fields)
+		doctype = get_doc.call_args.args[0]
+		self.assertEqual(doctype["custom"], 1)
+		return fieldnames, {field["fieldname"]: field for field in doctype["fields"]}
+
+	def test_makes_a_field_for_each_input(self):
+		fieldnames, fields = self.make(
+			[
+				{"fieldname": "full_name", "label": "Full Name", "fieldtype": "Data", "reqd": True},
+				{"fieldname": "", "label": "Your Email", "fieldtype": "Data", "options": "Email"},
+				{"fieldname": "city", "label": "City", "fieldtype": "Select", "options": "Pune\nGoa"},
+				{"fieldname": "photo", "label": "Photo", "fieldtype": "Attach Image"},
+			]
+		)
+
+		self.assertEqual(fieldnames, ["full_name", "your_email", "city", "photo"])
+		self.assertEqual(fields["full_name"]["reqd"], 1)
+		self.assertEqual(fields["your_email"]["options"], "Email")
+		self.assertEqual(fields["city"]["options"], "Pune\nGoa")
+		self.assertEqual(fields["photo"]["fieldtype"], "Data")
+
+	def test_renames_a_reserved_fieldname(self):
+		fieldnames, _ = self.make([{"fieldname": "name", "fieldtype": "Data"}])
+
+		self.assertEqual(fieldnames, ["name_field"])
+
+	def test_inputs_sharing_a_name_are_one_field(self):
+		fieldnames, fields = self.make(
+			[
+				{"fieldname": "interests", "label": "Yoga", "fieldtype": "Check"},
+				{"fieldname": "interests", "label": "Pilates", "fieldtype": "Check"},
+			]
+		)
+
+		self.assertEqual(fieldnames, ["interests", "interests"])
+		self.assertEqual(list(fields), ["interests"])
