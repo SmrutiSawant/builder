@@ -6,7 +6,7 @@
 				:is="destination.type === 'doctype' ? Autocomplete : 'BuilderInput'"
 				v-for="(destination, index) in modelValue"
 				:key="index"
-				v-bind="getFieldProps(destination)"
+				v-bind="getFieldProps(destination, index)"
 				:modelValue="destination.value"
 				:placeholder="destinationTypes[destination.type].placeholder"
 				@update:modelValue="(value: string) => update(index, value)"
@@ -53,6 +53,8 @@ const props = defineProps<{
 	label: string;
 	description?: string;
 	modelValue: FormDestination[];
+	// makes a DocType from the form and resolves its name
+	createDoctype?: () => Promise<string | null>;
 }>();
 
 const emit = defineEmits<{
@@ -67,7 +69,7 @@ const destinationTypes = {
 
 // a DocType already picked isn't offered again, or each submission would be saved twice
 const getDoctypeOptions = (picked: string) =>
-	(formDoctypes.data || [])
+	(formDoctypes.data?.doctypes || [])
 		.filter(
 			(doctype: string) =>
 				doctype === picked || !props.modelValue.some((d) => d.type === "doctype" && d.value === doctype),
@@ -75,14 +77,27 @@ const getDoctypeOptions = (picked: string) =>
 		.map((doctype: string) => ({ label: doctype, value: doctype }));
 
 // a DocType is picked from the ones the user may save to; the server checks it again on save
-const getFieldProps = (destination: FormDestination) =>
+const getFieldProps = (destination: FormDestination, index: number) =>
 	destination.type === "doctype"
 		? {
 				options: getDoctypeOptions(destination.value),
 				allowArbitraryValue: false,
+				actionButton: getCreateDoctypeAction(index),
 				onFocus: () => formDoctypes.fetch(),
 			}
 		: { hideClearButton: true };
+
+const getCreateDoctypeAction = (index: number) => {
+	if (!props.createDoctype || !formDoctypes.data?.can_create) return;
+	return {
+		label: __("New DocType from this form"),
+		icon: "lucide-plus",
+		handler: async () => {
+			const doctype = await props.createDoctype?.();
+			if (doctype) update(index, doctype);
+		},
+	};
+};
 
 const list = ref<HTMLElement | null>(null);
 
