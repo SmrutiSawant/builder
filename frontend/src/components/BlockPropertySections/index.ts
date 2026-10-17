@@ -1,4 +1,5 @@
 import accessibilitySection from "@/components/BlockPropertySections/AccessibilitySection";
+import buttonSection from "@/components/BlockPropertySections/ButtonSection";
 import collectionOptionsSection from "@/components/BlockPropertySections/CollectionOptionsSection";
 import customAttributesSection from "@/components/BlockPropertySections/CustomAttributesSection";
 import dataKeySection from "@/components/BlockPropertySections/DataKeySection";
@@ -53,6 +54,7 @@ const sections = [
 	radioGroupOptionsSection,
 	formSection,
 	formStateSection,
+	buttonSection,
 	typographySection,
 	styleSection,
 	dimensionSection,
