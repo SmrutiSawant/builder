@@ -437,6 +437,9 @@ class Block implements BlockOptions {
 	isRadioGroup() {
 		return this.getEffectiveAttribute("role") === "radiogroup";
 	}
+	isFormField() {
+		return this.isInput() || this.isSelect() || this.isRadioGroup();
+	}
 	getRadios(): Block[] {
 		return this.getChildren().flatMap((child) => (child.isRadio() ? [child] : child.getRadios()));
 	}

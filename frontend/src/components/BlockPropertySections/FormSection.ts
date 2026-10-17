@@ -101,5 +101,6 @@ const formSectionProperties = [
 export default {
 	name: __("Form"),
 	properties: formSectionProperties,
-	condition: () => blockController.isInForm(),
+	// a field is set up in its own Input section, as in Framer
+	condition: () => blockController.isInForm() && !blockController.isFormField(),
 };

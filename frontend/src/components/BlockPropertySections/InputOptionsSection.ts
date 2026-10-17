@@ -14,7 +14,18 @@ const inputOptionsSectionProperties = [
 			return {
 				label: __("Type"),
 				type: "select",
-				options: ["text", "number", "email", "password", "date", "time", "search", "tel", "url", "color"],
+				options: [
+					{ label: __("Text"), value: "text" },
+					{ label: __("Number"), value: "number" },
+					{ label: __("Email"), value: "email" },
+					{ label: __("Password"), value: "password" },
+					{ label: __("Date"), value: "date" },
+					{ label: __("Time"), value: "time" },
+					{ label: __("Search"), value: "search" },
+					{ label: __("Phone number"), value: "tel" },
+					{ label: __("URL"), value: "url" },
+					{ label: __("Color"), value: "color" },
+				],
 				modelValue: blockController.getEffectiveAttribute("type") || "text",
 			};
 		},
@@ -26,21 +37,6 @@ const inputOptionsSectionProperties = [
 		// checkboxes and radios come from the Checkbox and Radio Group templates, with their label text
 		condition: () =>
 			!blockController.isTextarea() && !blockController.isSelect() && !blockController.isCheckable(),
-	},
-	{
-		component: InlineInput,
-		getProps: () => {
-			return {
-				label: __("Placeholder"),
-				modelValue: blockController.getEffectiveAttribute("placeholder"),
-			};
-		},
-		searchKeyWords:
-			"Placeholder, Input, PlaceholderText, Placeholder Text, form, input, text, number, email, password, date, time, search, tel, url, color, tag",
-		events: {
-			"update:modelValue": (val: string) => blockController.setEffectiveAttribute("placeholder", val),
-		},
-		condition: () => !blockController.isSelect() && !blockController.isCheckable(),
 	},
 	{
 		component: InlineInput,
@@ -58,6 +54,21 @@ const inputOptionsSectionProperties = [
 		events: {
 			"update:modelValue": (val: string) => blockController.setEffectiveAttribute("name", val || undefined),
 		},
+	},
+	{
+		component: InlineInput,
+		getProps: () => {
+			return {
+				label: __("Placeholder"),
+				modelValue: blockController.getEffectiveAttribute("placeholder"),
+			};
+		},
+		searchKeyWords:
+			"Placeholder, Input, PlaceholderText, Placeholder Text, form, input, text, number, email, password, date, time, search, tel, url, color, tag",
+		events: {
+			"update:modelValue": (val: string) => blockController.setEffectiveAttribute("placeholder", val),
+		},
+		condition: () => !blockController.isSelect() && !blockController.isCheckable(),
 	},
 	{
 		component: OptionToggle,
@@ -135,7 +146,7 @@ const inputOptionsSectionProperties = [
 ];
 
 export default {
-	name: __("Input Options"),
+	name: __("Input"),
 	properties: inputOptionsSectionProperties,
 	condition: () => blockController.isInput() || blockController.isSelect(),
 };
