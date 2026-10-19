@@ -110,6 +110,33 @@ def list_form_doctypes() -> list[str]:
 	return [name for name in names if frappe.has_permission(name, "create")]
 
 
+def list_form_doctype_fields(doctype: str) -> list[dict]:
+	"""The fields a form can fill in this DocType. A `needed` one fails every submission
+	that leaves it empty."""
+	needed = get_needed_fields(doctype)
+	return [
+		{
+			"fieldname": df.fieldname,
+			"label": df.label or frappe.unscrub(df.fieldname),
+			"fieldtype": df.fieldtype,
+			"options": df.options,
+			"needed": df.fieldname in needed,
+		}
+		for df in frappe.get_meta(doctype).fields
+		if is_form_field(df) or df.fieldname in needed
+	]
+
+
+def get_needed_fields(doctype: str) -> set[str]:
+	# a new record has its defaults, so only the required fields still empty need the form
+	doc = frappe.new_doc(doctype)
+	needed = {fieldname for fieldname, _msg in doc._get_missing_mandatory_fields()}
+	# a record named after a field can't be saved without it, even if it isn't required
+	if (doc.meta.autoname or "").startswith("field:") and not doc.get(doc.meta.autoname[6:]):
+		needed.add(doc.meta.autoname[6:])
+	return needed
+
+
 class FormSubmission:
 	"""A visitor's submission of a published form. Its destinations arrive sealed by the
 	page render, so the visitor can neither read nor change where it is delivered."""

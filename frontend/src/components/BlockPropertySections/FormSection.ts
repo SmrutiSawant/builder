@@ -7,6 +7,7 @@ import InlineInput from "@/components/Controls/InlineInput.vue";
 import { getLinkablePageOptions, linkablePages } from "@/data/allWebPages";
 import blockController from "@/utils/blockController";
 import { promptCreateFormDoctype } from "@/utils/dialogs";
+import { checkFormDoctype } from "@/utils/formFields";
 import { formStates } from "@/utils/formStates";
 import { __ } from "@/translation";
 
@@ -19,6 +20,8 @@ const formSectionProperties = [
 				description: __("Each submission is saved, emailed or posted to these destinations."),
 				modelValue: blockController.getFirstSelectedBlock().getFormDestinations(),
 				createDoctype: () => promptCreateFormDoctype(blockController.getFirstSelectedBlock()),
+				checkDoctype: (doctype: string, createDoctype?: () => void) =>
+					checkFormDoctype(blockController.getFirstSelectedBlock(), doctype, createDoctype),
 			};
 		},
 		searchKeyWords:
