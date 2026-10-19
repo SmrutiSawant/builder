@@ -9,6 +9,8 @@ from frappe.utils.password import decrypt, encrypt
 
 MAX_FIELDS = 50
 MAX_VALUE_LENGTH = 5000
+# what a visitor fills in, like a phone number or a choice, unlike a count
+VISITOR_FIELDTYPES = {"Data", "Small Text", "Text", "Long Text", "Phone", "Select", "Check"}
 
 
 def parse_destinations(destinations: str | None) -> list[dict]:
@@ -112,7 +114,7 @@ def list_form_doctypes() -> list[str]:
 
 def list_form_doctype_fields(doctype: str) -> list[dict]:
 	"""The fields a form can fill in this DocType. A `needed` one fails every submission
-	that leaves it empty."""
+	that leaves it empty, and a `suggested` one is optional but a visitor's to fill in."""
 	needed = get_needed_fields(doctype)
 	return [
 		{
@@ -121,10 +123,19 @@ def list_form_doctype_fields(doctype: str) -> list[dict]:
 			"fieldtype": df.fieldtype,
 			"options": df.options,
 			"needed": df.fieldname in needed,
+			"suggested": df.fieldname not in needed and is_visitor_field(df),
 		}
 		for df in frappe.get_meta(doctype).fields
 		if is_form_field(df) or df.fieldname in needed
 	]
+
+
+def is_visitor_field(df) -> bool:
+	# the site sets a read-only, fetched or restricted field itself, and a record's status
+	if df.read_only or df.hidden or df.fetch_from or df.permlevel or df.fieldname == "status":
+		return False
+	# a defaulted field is the site's too, but a checkbox's "0" is only its unticked state
+	return df.fieldtype in VISITOR_FIELDTYPES and df.default in (None, "", "0")
 
 
 def get_needed_fields(doctype: str) -> set[str]:
