@@ -25,7 +25,12 @@ from builder import builder_analytics
 from builder.builder.doctype.builder_page.builder_page import BuilderPageRenderer
 from builder.builder.doctype.builder_snapshot import builder_snapshot
 from builder.form_doctype import create_form_doctype
-from builder.form_submission import FormSubmission, list_form_doctypes
+from builder.form_submission import (
+	FormSubmission,
+	list_form_doctype_fields,
+	list_form_doctypes,
+	validate_form_doctype,
+)
 from builder.utils import compact_json, has_page_read, has_page_write, normalize_renamed_doc
 
 
@@ -809,6 +814,13 @@ def get_form_doctypes() -> dict:
 def make_form_doctype(doctype: str, fields: list[dict]) -> list[str]:
 	"""Make a DocType from a form's fields to save its submissions in."""
 	return create_form_doctype(doctype, fields)
+
+
+@frappe.whitelist()
+def get_form_doctype_fields(doctype: str) -> list[dict]:
+	"""The fields of a DocType picked in a form's Send to, to check and fit the form to."""
+	validate_form_doctype(doctype)
+	return list_form_doctype_fields(doctype)
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])

@@ -9,6 +9,7 @@ from builder.builder.doctype.builder_page.builder_page import get_block_html
 from builder.form_doctype import create_form_doctype
 from builder.form_submission import (
 	FormSubmission,
+	list_form_doctype_fields,
 	list_form_doctypes,
 	seal_destinations,
 	validate_form_doctype,
@@ -16,6 +17,7 @@ from builder.form_submission import (
 )
 
 DOCTYPE = "Builder Test Form Entry"
+SIGNUP_DOCTYPE = "Builder Test Form Signup"
 USER = "form-submission-test@example.com"
 
 
@@ -58,6 +60,25 @@ class TestFormSubmission(FrappeTestCase):
 					"permissions": [{"role": "System Manager", "read": 1, "create": 1}],
 				}
 			).insert()
+		if not frappe.db.exists("DocType", SIGNUP_DOCTYPE):
+			frappe.get_doc(
+				{
+					"doctype": "DocType",
+					"name": SIGNUP_DOCTYPE,
+					"module": "Builder",
+					"custom": 1,
+					"naming_rule": "By fieldname",
+					"autoname": "field:email",
+					"fields": [
+						{"fieldname": "full_name", "label": "Full Name", "fieldtype": "Data", "reqd": 1},
+						{"fieldname": "email", "label": "Email", "fieldtype": "Data"},
+						{"fieldname": "plan", "fieldtype": "Data", "reqd": 1, "default": "Free"},
+						{"fieldname": "agreed", "label": "Agreed", "fieldtype": "Check", "reqd": 1},
+						{"fieldname": "photo", "label": "Photo", "fieldtype": "Attach"},
+					],
+					"permissions": [{"role": "System Manager", "read": 1, "create": 1}],
+				}
+			).insert()
 		if not frappe.db.exists("User", USER):
 			frappe.get_doc({"doctype": "User", "email": USER, "first_name": "Form"}).insert()
 
@@ -81,6 +102,14 @@ class TestFormSubmission(FrappeTestCase):
 		).deliver()
 
 		self.assertIsNone(frappe.get_last_doc(DOCTYPE).notes)
+
+	def test_lists_the_fields_a_form_can_fill_and_the_ones_it_must(self):
+		fields = list_form_doctype_fields(SIGNUP_DOCTYPE)
+
+		# a form can't attach a file
+		self.assertEqual([f["fieldname"] for f in fields], ["full_name", "email", "plan", "agreed"])
+		# records are named after Email, and Plan and Agreed fill themselves
+		self.assertEqual([f["fieldname"] for f in fields if f["needed"]], ["full_name", "email"])
 
 	def test_refuses_a_framework_doctype_a_page_was_saved_with(self):
 		sealed = seal_destinations(json.dumps([{"type": "doctype", "value": "User"}]), ["email"])

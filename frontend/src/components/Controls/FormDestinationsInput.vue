@@ -55,6 +55,8 @@ const props = defineProps<{
 	modelValue: FormDestination[];
 	// makes a DocType from the form and resolves its name
 	createDoctype?: () => Promise<string | null>;
+	// warns when a picked DocType doesn't fit the form, which can offer to make one instead
+	checkDoctype?: (doctype: string, createDoctype?: () => void) => void;
 }>();
 
 const emit = defineEmits<{
@@ -101,11 +103,15 @@ const getCreateDoctypeAction = (index: number) => {
 
 const list = ref<HTMLElement | null>(null);
 
-const update = (index: number, value: string) =>
+const update = (index: number, value: string) => {
 	emit(
 		"update:modelValue",
 		props.modelValue.map((destination, i) => (i === index ? { ...destination, value } : destination)),
 	);
+	if (props.modelValue[index].type === "doctype" && value) {
+		props.checkDoctype?.(value, getCreateDoctypeAction(index)?.handler);
+	}
+};
 
 const remove = (index: number) =>
 	emit(
