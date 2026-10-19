@@ -109,5 +109,5 @@ export default {
 	properties: formSectionProperties,
 	// a field is set up in its own Input section, and a button with variants in Form State, as in Framer
 	condition: () =>
-		blockController.isInForm() && !blockController.isFormField() && !blockController.hasFormStateVariants(),
+		blockController.isInForm() && !blockController.isInFormField() && !blockController.hasFormStateVariants(),
 };
