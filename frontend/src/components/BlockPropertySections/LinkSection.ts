@@ -165,8 +165,10 @@ export default {
 	name: __("Link"),
 	properties: linkSectionProperties,
 	collapsed: computed(() => !blockController.isLink()),
+	// a link can't submit its form, so the page after submit is set in Form > Redirect
 	condition: () =>
 		!blockController.multipleBlocksSelected() &&
 		!blockController.getSelectedBlocks()[0].parentBlock?.isLink() &&
+		!(blockController.isButton() && blockController.isInForm()) &&
 		!(blockController.isHTML() && !blockController.isSVG()),
 };
