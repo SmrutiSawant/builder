@@ -133,8 +133,8 @@ class FormDoctypeCheck {
 			.join(" ");
 	}
 
-	// the inputs to rename after the field they match, the needed fields to add an input for, and the ones
-	// no input can be added for, like a Link
+	// the inputs to rename after the field they match or remove, the needed fields to add an input for,
+	// and the ones no input can be added for, like a Link
 	planFix() {
 		const taken = new Set(getFormFields(this.form).map(getFieldName));
 		const renames = new Map<Block, DoctypeField>();
@@ -150,7 +150,8 @@ class FormDoctypeCheck {
 		const remaining = this.fields.filter((df) => df.needed && !taken.has(df.fieldname));
 		const additions = remaining.filter((df) => getInputTemplate(this.form, df));
 		const unfillable = remaining.filter((df) => !additions.includes(df));
-		return { renames, additions, unfillable };
+		const removals = dropped.filter((input) => !renames.has(input));
+		return { renames, additions, unfillable, removals };
 	}
 
 	warn() {
@@ -165,17 +166,22 @@ class FormDoctypeCheck {
 
 	// a fix can't make submissions save while a needed field stays empty, so a new DocType is offered instead
 	getAction() {
-		const { renames, additions, unfillable } = this.planFix();
+		const { renames, additions, unfillable, removals } = this.planFix();
 		if (unfillable.length) {
 			return this.createDoctype && { label: __("New DocType"), onClick: this.createDoctype };
 		}
-		if (renames.size || additions.length) return { label: __("Fix form"), onClick: () => this.fix() };
+		if (renames.size || additions.length || removals.length) {
+			return { label: __("Fix form"), onClick: () => this.fix() };
+		}
 	}
 
 	fix() {
-		const { renames, additions } = this.planFix();
+		const { renames, additions, removals } = this.planFix();
+		const removed = removals.map((input) => getFieldLabel(input) || getFieldName(input)).filter(Boolean);
 		renames.forEach((df, input) => nameFormFields([input], [df.fieldname]));
+		// added before the removals, which may take the only input to copy
 		additions.forEach((df) => addFormInput(this.form, df));
+		removals.forEach((input) => removeFormField(this.form, input));
 		const gaps = this.describeGaps();
 		// a new toast, since the warning closes once its action runs
 		if (gaps) {
@@ -184,7 +190,9 @@ class FormDoctypeCheck {
 				duration: 15000,
 			});
 		} else {
-			toast.success(__("The form now matches {0}", [this.doctype]));
+			toast.success(__("The form now matches {0}", [this.doctype]), {
+				description: removed.length ? __("Removed {0}.", [removed.join(", ")]) : undefined,
+			});
 		}
 	}
 }
@@ -232,6 +240,25 @@ function addFormInput(form: Block, df: DoctypeField) {
 	const anchor = getFormChild(form, getFormFields(form).at(-1) as Block);
 	form.addChild(input, form.getChildIndex(anchor) + 1, false);
 }
+
+// with the label it sits in, but not a row it shares with other fields or the submit button
+function removeFormField(form: Block, field: Block) {
+	const wrapper = getFieldWrapper(form, field);
+	wrapper.getParentBlock()?.removeChild(wrapper);
+}
+
+const getFieldWrapper = (form: Block, field: Block): Block => {
+	const parent = field.getParentBlock() as Block;
+	const ownsParent =
+		parent.blockId !== form.blockId && getFormFields(parent).length === 1 && !hasButton(parent);
+	return ownsParent ? getFieldWrapper(form, parent) : field;
+};
+
+const isButton = (block: Block) =>
+	block.getElement() === "button" || block.getEffectiveAttribute("type") === "submit";
+
+const hasButton = (block: Block): boolean =>
+	block.getChildren().some((child) => isButton(child) || hasButton(child));
 
 const getFormChild = (form: Block, block: Block): Block =>
 	block.getParentBlock()?.blockId === form.blockId
