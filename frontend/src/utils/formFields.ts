@@ -87,7 +87,7 @@ function nameFormFields(fields: Block[], fieldnames: string[]) {
 async function checkFormDoctype(form: Block, doctype: string, createDoctype?: () => void) {
 	const fields = await createResource({ url: "builder.api.get_form_doctype_fields" }).submit({ doctype });
 	const check = new FormDoctypeCheck(form, doctype, fields, createDoctype);
-	if (check.describeGaps()) check.warn();
+	if (check.describe()) check.warn();
 }
 
 class FormDoctypeCheck {
@@ -99,38 +99,26 @@ class FormDoctypeCheck {
 		private createDoctype?: () => void,
 	) {}
 
-	// an input named after no field is dropped, and a needed field no input is named after fails each submission
-	getGaps() {
-		const inputs = getFormFields(this.form);
-		const names = inputs.map(getFieldName);
-		return {
-			missing: this.fields.filter((df) => df.needed && !names.includes(df.fieldname)),
-			dropped: inputs.filter((input) => !this.fields.some((df) => df.fieldname === getFieldName(input))),
-		};
+	// an input named after no field isn't saved
+	getDropped() {
+		return getFormFields(this.form).filter(
+			(input) => !this.fields.some((df) => df.fieldname === getFieldName(input)),
+		);
 	}
 
-	describeGaps() {
-		const { unfillable } = this.planFix();
-		// the form can't save here whatever its inputs are, so nothing else about them is worth saying
+	// what Fix form will change, or why no change to the form can make its submissions save
+	describe() {
+		const { renames, additions, unfillable, removals } = this.planFix();
 		if (unfillable.length) {
-			return __("Submissions will fail: {0} needs {1}, which a form can't fill in.", [
-				this.doctype,
-				unfillable.map((df) => df.label).join(", "),
-			]);
+			return __("A form can't fill in {0}.", [unfillable.map((df) => df.label).join(", ")]);
 		}
-		const { missing, dropped } = this.getGaps();
-		const droppedLabels = dropped.map((input) => getFieldLabel(input) || getFieldName(input)).filter(Boolean);
-		return [
-			missing.length &&
-				__("Submissions will fail: {0} needs {1}, which the form has no input for.", [
-					this.doctype,
-					missing.map((df) => df.label).join(", "),
-				]),
-			droppedLabels.length &&
-				__("{0} has no field for {1}, which won't be saved.", [this.doctype, droppedLabels.join(", ")]),
-		]
-			.filter(Boolean)
-			.join(" ");
+		const changes = [
+			additions.length && __("adds {0}", [additions.map((df) => df.label).join(", ")]),
+			renames.size &&
+				__("saves {0}", [[...renames].map(([input, df]) => describeRename(input, df)).join(", ")]),
+			removals.length && __("removes {0}", [removals.map(getInputLabel).join(", ")]),
+		].filter(Boolean) as string[];
+		return changes.length ? __("Fix form {0}.", [joinWithAnd(changes)]) : "";
 	}
 
 	// the inputs to rename after the field they match or remove, the needed fields to add an input for,
@@ -138,7 +126,7 @@ class FormDoctypeCheck {
 	planFix() {
 		const taken = new Set(getFormFields(this.form).map(getFieldName));
 		const renames = new Map<Block, DoctypeField>();
-		const { dropped } = this.getGaps();
+		const dropped = this.getDropped();
 		for (const matches of FIELD_MATCHERS) {
 			for (const input of dropped.filter((input) => !renames.has(input))) {
 				const df = this.fields.find((df) => !taken.has(df.fieldname) && matches(input, df));
@@ -158,7 +146,7 @@ class FormDoctypeCheck {
 		toast.warning(__("This form doesn't match {0}", [this.doctype]), {
 			// picking another DocType replaces the warning
 			id: "form-doctype-check",
-			description: this.describeGaps(),
+			description: this.describe(),
 			duration: 15000,
 			action: this.getAction(),
 		});
@@ -177,25 +165,28 @@ class FormDoctypeCheck {
 
 	fix() {
 		const { renames, additions, removals } = this.planFix();
-		const removed = removals.map((input) => getFieldLabel(input) || getFieldName(input)).filter(Boolean);
+		const removed = removals.map(getInputLabel);
 		renames.forEach((df, input) => nameFormFields([input], [df.fieldname]));
 		// added before the removals, which may take the only input to copy
 		additions.forEach((df) => addFormInput(this.form, df));
 		removals.forEach((input) => removeFormField(this.form, input));
-		const gaps = this.describeGaps();
 		// a new toast, since the warning closes once its action runs
-		if (gaps) {
-			toast.warning(__("The form still doesn't match {0}", [this.doctype]), {
-				description: gaps,
-				duration: 15000,
-			});
-		} else {
-			toast.success(__("The form now matches {0}", [this.doctype]), {
-				description: removed.length ? __("Removed {0}.", [removed.join(", ")]) : undefined,
-			});
-		}
+		toast.success(__("The form now matches {0}", [this.doctype]), {
+			description: removed.length ? __("Removed {0}.", [removed.join(", ")]) : undefined,
+		});
 	}
 }
+
+const getInputLabel = (input: Block) => getFieldLabel(input) || getFieldName(input) || __("Unnamed input");
+
+// the field's label is only worth naming when it reads differently from the input's
+const describeRename = (input: Block, df: DoctypeField) => {
+	const label = getInputLabel(input);
+	return normalize(label) === normalize(df.label) ? label : __("{0} as {1}", [label, df.label]);
+};
+
+const joinWithAnd = (parts: string[]) =>
+	parts.length > 1 ? __("{0} and {1}", [parts.slice(0, -1).join(", "), parts[parts.length - 1]]) : parts[0];
 
 const normalize = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
 
