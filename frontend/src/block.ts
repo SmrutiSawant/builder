@@ -448,8 +448,11 @@ class Block implements BlockOptions {
 	isFormField() {
 		return this.isInput() || this.isSelect() || this.isRadioGroup();
 	}
+	isFieldLabel() {
+		return this.getElement() === "label" && this.getChildren().some((child) => child.isFormField());
+	}
 	isInFormField(): boolean {
-		return this.isFormField() || Boolean(this.getParentBlock()?.isInFormField());
+		return this.isFormField() || this.isFieldLabel() || Boolean(this.getParentBlock()?.isInFormField());
 	}
 	getRadios(): Block[] {
 		return this.getChildren().flatMap((child) => (child.isRadio() ? [child] : child.getRadios()));
