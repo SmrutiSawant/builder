@@ -150,6 +150,7 @@ class Block implements BlockOptions {
 		this.isRepeaterBlock = options.isRepeaterBlock;
 		this.isChildOfComponent = options.isChildOfComponent;
 		this.referenceBlockId = options.referenceBlockId;
+		this.elementBeforeConversion = options.elementBeforeConversion;
 		this.parentBlock = options.parentBlock || null;
 		if (this.extendedFromComponent) {
 			if (this.componentVersion) {
