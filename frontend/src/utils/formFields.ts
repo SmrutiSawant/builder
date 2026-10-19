@@ -1,6 +1,7 @@
 import type Block from "@/block";
+import useBlockTemplateStore from "@/stores/blockTemplateStore";
 import { __ } from "@/translation";
-import { getBlockInstance, getBlockObject } from "@/utils/helpers";
+import { escapeHtml, getBlockInstance, getBlockObject } from "@/utils/helpers";
 import { createResource, toast } from "frappe-ui";
 
 interface FormFieldSchema {
@@ -17,6 +18,7 @@ interface DoctypeField {
 	fieldtype: string;
 	options?: string;
 	needed: boolean;
+	suggested: boolean;
 }
 
 // the DocType field an input type is saved as; the rest are saved as Data
@@ -30,7 +32,7 @@ const FIELDTYPES: Record<string, string> = {
 	color: "Color",
 };
 
-// the input type a needed field is added with; a field of any other type, like a Link, isn't added
+// the input type a field is added with; a field of any other type, like a Link, isn't added
 const INPUT_TYPES: Record<string, string> = {
 	Data: "text",
 	"Small Text": "text",
@@ -49,6 +51,9 @@ const INPUT_TYPES: Record<string, string> = {
 };
 
 const LONG_TEXT_FIELDTYPES = new Set(["Small Text", "Text", "Long Text"]);
+
+// the Form parts block template a choice field is added from
+const FIELD_TEMPLATES: Record<string, string> = { Select: "Select", Check: "Checkbox" };
 
 // inputs that only act on the form, and files, which a submission can't carry
 const SKIPPED_INPUT_TYPES = new Set(["submit", "reset", "button", "image", "file"]);
@@ -121,8 +126,8 @@ class FormDoctypeCheck {
 		return changes.length ? __("Fix form {0}.", [joinWithAnd(changes)]) : "";
 	}
 
-	// the inputs to rename after the field they match or remove, the needed fields to add an input for,
-	// and the ones no input can be added for, like a Link
+	// the inputs to rename after the field they match or remove, the needed and suggested fields to add
+	// an input for, and the needed ones no input can be added for, like a Link
 	planFix() {
 		const taken = new Set(getFormFields(this.form).map(getFieldName));
 		const renames = new Map<Block, DoctypeField>();
@@ -135,9 +140,9 @@ class FormDoctypeCheck {
 				taken.add(df.fieldname);
 			}
 		}
-		const remaining = this.fields.filter((df) => df.needed && !taken.has(df.fieldname));
-		const additions = remaining.filter((df) => getInputTemplate(this.form, df));
-		const unfillable = remaining.filter((df) => !additions.includes(df));
+		const remaining = this.fields.filter((df) => (df.needed || df.suggested) && !taken.has(df.fieldname));
+		const additions = remaining.filter((df) => canAddField(this.form, df));
+		const unfillable = remaining.filter((df) => df.needed && !additions.includes(df));
 		const removals = dropped.filter((input) => !renames.has(input));
 		return { renames, additions, unfillable, removals };
 	}
@@ -163,9 +168,12 @@ class FormDoctypeCheck {
 		}
 	}
 
-	fix() {
+	async fix() {
 		const { renames, additions, removals } = this.planFix();
 		const removed = removals.map(getInputLabel);
+		// fetched first, so the changes below land together and undo in one step
+		const templates = additions.map((df) => FIELD_TEMPLATES[df.fieldtype]).filter(Boolean);
+		await Promise.all(templates.map((name) => useBlockTemplateStore().fetchBlockTemplate(name)));
 		renames.forEach((df, input) => nameFormFields([input], [df.fieldname]));
 		// added before the removals, which may take the only input to copy
 		additions.forEach((df) => addFormInput(this.form, df));
@@ -202,7 +210,11 @@ const FIELD_MATCHERS = [
 		input.getEffectiveAttribute("type") === "email" && df.options === "Email",
 ];
 
-const getInputType = (df: DoctypeField) => (df.options === "Email" ? "email" : INPUT_TYPES[df.fieldtype]);
+// a Data field's options say what kind of text it holds
+const DATA_INPUT_TYPES: Record<string, string> = { Email: "email", Phone: "tel", URL: "url" };
+
+const getInputType = (df: DoctypeField) =>
+	(df.fieldtype === "Data" && DATA_INPUT_TYPES[df.options || ""]) || INPUT_TYPES[df.fieldtype];
 
 // one of the form's own text inputs, so an added one is styled the same
 function getInputTemplate(form: Block, df: DoctypeField) {
@@ -217,19 +229,56 @@ function getInputTemplate(form: Block, df: DoctypeField) {
 	);
 }
 
+// a choice field comes from its block template, and a text field is copied from the form's own inputs
+const canAddField = (form: Block, df: DoctypeField) =>
+	df.fieldtype in FIELD_TEMPLATES
+		? df.fieldtype === "Check" || Boolean(df.options?.trim())
+		: Boolean(getInputTemplate(form, df));
+
 // added after the last field, at the form's own level so it isn't put inside that field's row
 function addFormInput(form: Block, df: DoctypeField) {
+	const input = df.fieldtype in FIELD_TEMPLATES ? makeChoiceField(df) : copyTextInput(form, df);
+	const last = getFormFields(form).at(-1);
+	form.addChild(input, last ? form.getChildIndex(getFormChild(form, last)) + 1 : 0, false);
+}
+
+function copyTextInput(form: Block, df: DoctypeField) {
 	const template = getInputTemplate(form, df) as Block;
 	const attributes = {
 		name: df.fieldname,
 		placeholder: df.label,
 		"aria-label": df.label,
 		type: template.isTextarea() ? undefined : getInputType(df),
-		required: "required",
+		required: df.needed ? "required" : undefined,
 	};
-	const input = getBlockInstance({ ...getBlockObject(template), attributes, customAttributes: {} }, false);
-	const anchor = getFormChild(form, getFormFields(form).at(-1) as Block);
-	form.addChild(input, form.getChildIndex(anchor) + 1, false);
+	return getBlockInstance({ ...getBlockObject(template), attributes, customAttributes: {} }, false);
+}
+
+// a label holding the field's own text and its select or checkbox, as dropped from the blocks panel
+function makeChoiceField(df: DoctypeField) {
+	const template = useBlockTemplateStore().getBlockTemplate(FIELD_TEMPLATES[df.fieldtype]);
+	const wrapper = getBlockInstance(template.block, false);
+	const [field] = getFormFields(wrapper);
+	wrapper
+		.getChildren()
+		.find((child) => child.isText())
+		?.setInnerHTML(escapeHtml(df.label));
+	field.setEffectiveAttribute("name", df.fieldname);
+	field.setEffectiveAttribute("required", df.needed ? "required" : undefined);
+	if (field.isSelect()) setSelectOptions(field, df);
+	return wrapper;
+}
+
+// the template's placeholder option stays, and its sample options give way to the field's
+function setSelectOptions(select: Block, df: DoctypeField) {
+	select
+		.getOptions()
+		.filter((option) => option.getEffectiveAttribute("value") !== "")
+		.forEach((option) => select.removeChild(option));
+	(df.options || "")
+		.split("\n")
+		.filter(Boolean)
+		.forEach((option) => select.addOption(escapeHtml(option)));
 }
 
 // with the label it sits in, but not a row it shares with other fields or the submit button

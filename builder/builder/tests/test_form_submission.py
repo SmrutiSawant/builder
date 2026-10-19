@@ -72,6 +72,7 @@ class TestFormSubmission(FrappeTestCase):
 					"fields": [
 						{"fieldname": "full_name", "label": "Full Name", "fieldtype": "Data", "reqd": 1},
 						{"fieldname": "email", "label": "Email", "fieldtype": "Data"},
+						{"fieldname": "phone", "label": "Phone", "fieldtype": "Data", "options": "Phone"},
 						{"fieldname": "plan", "fieldtype": "Data", "reqd": 1, "default": "Free"},
 						{"fieldname": "agreed", "label": "Agreed", "fieldtype": "Check", "reqd": 1},
 						{"fieldname": "photo", "label": "Photo", "fieldtype": "Attach"},
@@ -107,9 +108,11 @@ class TestFormSubmission(FrappeTestCase):
 		fields = list_form_doctype_fields(SIGNUP_DOCTYPE)
 
 		# a form can't attach a file
-		self.assertEqual([f["fieldname"] for f in fields], ["full_name", "email", "plan", "agreed"])
+		self.assertEqual([f["fieldname"] for f in fields], ["full_name", "email", "phone", "plan", "agreed"])
 		# records are named after Email, and Plan and Agreed fill themselves
 		self.assertEqual([f["fieldname"] for f in fields if f["needed"]], ["full_name", "email"])
+		# Plan has a default, so it's the site's to set
+		self.assertEqual([f["fieldname"] for f in fields if f["suggested"]], ["phone", "agreed"])
 
 	def test_refuses_a_framework_doctype_a_page_was_saved_with(self):
 		sealed = seal_destinations(json.dumps([{"type": "doctype", "value": "User"}]), ["email"])
