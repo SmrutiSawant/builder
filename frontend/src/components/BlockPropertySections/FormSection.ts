@@ -85,6 +85,7 @@ const formSectionProperties = [
 		events: {
 			"update:modelValue": (state: string) => blockController.setFormStatePreview(state),
 		},
+		condition: () => !blockController.isForm(),
 	},
 	{
 		component: FormStatesInput,
