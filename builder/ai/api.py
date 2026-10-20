@@ -218,14 +218,9 @@ def confirm_pending_settings(message_id: str, decision: str = "apply"):
 	frappe.db.set_value(AISession.MESSAGE_DOCTYPE, message_id, "status", "action_applied")
 	# The OUTCOME becomes part of the conversation — visible in the chat after a
 	# reload, and context for the agent's next turn (it knows what was applied).
-	AISession.try_append_message(msg.session, "assistant", result["message"], message_type="status")
-	resumed = resume_after_action(msg.session, result["message"])
-	return {
-		"status": "applied",
-		"message": result["message"],
-		"client_ops": result["client_ops"],
-		"resumed": resumed,
-	}
+	AISession.try_append_message(msg.session, "assistant", result, message_type="status")
+	resumed = resume_after_action(msg.session, result)
+	return {"status": "applied", "message": result, "resumed": resumed}
 
 
 def resume_after_action(session_id: str, outcome: str) -> bool:

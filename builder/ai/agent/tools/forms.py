@@ -1,13 +1,15 @@
 """Connect a page form to real data — the 'make this form actually save' tool.
 
-A form on a published Builder page is public (a guest fills it), so it saves
-through its Send to: a DocType destination there is sealed into the page with the
-form's field names, and builder.api.submit_form inserts only those fields with
-ignore_permissions. The submission DocType needs NO guest permission.
+A form on a published Builder page is public (a guest fills it), so it can't
+insert into a DocType directly. The safe, code-free path is Frappe's built-in
+Web Form: its `accept` endpoint is guest-allowed, rate-limited, field-whitelisted,
+and inserts with ignore_permissions — the Web Form is the trusted boundary, so
+the submission DocType needs NO guest permission.
 
-`connect_form` (confirm-gated) does it on approval:
+`connect_form` (confirm-gated) provisions the whole chain on approval:
   1. a private submission DocType (System Manager only — no guest read),
-  2. the <form> block's Send to pointed at it.
+  2. a Web Form bound to it (login_required off, published),
+  3. a page client script that POSTs the form's fields to the accept endpoint.
 The user then reads submissions in Desk at /app/<doctype>.
 """
 
@@ -18,7 +20,6 @@ import frappe
 from builder.ai.agent import pending
 from builder.ai.agent.registry import Tool
 from builder.form_doctype import safe_fieldname
-from builder.form_submission import collect_form_doctypes, walk_blocks
 
 # Fieldtypes a public form can safely write. Anything else (Link, Table, Attach…)
 # is coerced to Data. Select is deliberately EXCLUDED: an HTML <select> submits its
@@ -30,14 +31,10 @@ SAFE_FIELDTYPES = {"Data", "Small Text", "Text", "Int", "Float", "Check", "Date"
 
 def connected_submission_doctype(page_id: str) -> str | None:
 	"""The submission DocType a form on this page already saves to, if any — read
-	from its Send to, or from the 'Save <doctype> submissions' client script a form
-	was wired with before. Lets a "where do my submissions go?" question be answered
-	instead of creating a duplicate."""
+	from the attached 'Save <doctype> submissions' client script. Lets a "where do
+	my submissions go?" question be answered instead of creating a duplicate."""
 	if not page_id or not frappe.db.exists("Builder Page", page_id):
 		return None
-	draft, published = frappe.db.get_value("Builder Page", page_id, ["draft_blocks", "blocks"])
-	if doctypes := collect_form_doctypes(draft, published):
-		return sorted(doctypes)[0]
 	names = frappe.get_all(
 		"Builder Page Client Script",
 		filters={"parent": page_id, "parenttype": "Builder Page"},
@@ -66,75 +63,43 @@ def request_connect_form(ctx, args: dict) -> str | None:
 		)
 	doctype = (args.get("doctype_name") or "").strip()
 	fields = [f for f in (args.get("fields") or []) if isinstance(f, dict) and f.get("fieldname")]
-	form_block_id = (args.get("form_block_id") or "").strip()
-	if not doctype or not fields or not form_block_id:
+	selector = (args.get("form_selector") or "").strip()
+	if not doctype or not fields or not selector:
 		return (
-			"DECLINED: connect_form needs doctype_name, at least one field, and form_block_id "
-			"(the ref of the <form> block that holds the inputs)."
+			"DECLINED: connect_form needs doctype_name, at least one field, and form_selector "
+			'(the CSS selector of the <form> or its container — set name="<fieldname>" on each input first).'
 		)
-	if declined := check_form(ctx, form_block_id, [f["fieldname"] for f in fields]):
-		return declined
 	if frappe.db.exists("DocType", doctype) and not is_builder_submission_doctype(doctype):
 		return (
 			f"DECLINED: '{doctype}' already exists and isn't a Builder submission doctype — pick a new "
 			f"name (e.g. '{doctype} Submission') so real data isn't touched."
 		)
 	summary = (
-		f"Create the DocType '{doctype}' ({len(fields)} field(s)) and point this form's Send to at it? "
-		f"You'll see entries in Desk at /app/{desk_slug(doctype)}."
+		f"Create the DocType '{doctype}' ({len(fields)} field(s)) and wire this form to save "
+		f"submissions to it? You'll see entries in Desk at /app/{desk_slug(doctype)}."
 	)
 	payload = {
 		"doctype_name": doctype,
 		"fields": [normalize_field(f) for f in fields],
 		"page_id": ctx.page_id,
-		"form_block_id": form_block_id,
+		"form_selector": selector,
 	}
 	pending.request_confirmation(ctx, "connect_form", summary, payload)
 	return None
 
 
-def check_form(ctx, form_block_id: str, fieldnames: list[str]) -> str | None:
-	"""A submission is saved by input name, from a real <form>: both are fixed with
-	update_block before the user is asked, so what they approve is what saves."""
-	tree = getattr(ctx, "tree", None)
-	form = tree.resolve(form_block_id) if tree else None
-	if form is None:
-		return f"DECLINED: form_block_id '{form_block_id}' is not a block on this page — pass the form's ref."
-	if (form.get("originalElement") or form.get("element")) != "form":
-		return (
-			"DECLINED: form_block_id must be a <form> block — set element: 'form' on the block that "
-			"holds the inputs and submit button (update_block), then call connect_form again."
-		)
-	if unsafe := [f for f in fieldnames if safe_fieldname(frappe.scrub(f)) != f]:
-		return (
-			f"DECLINED: {', '.join(unsafe)} can't be fieldnames — use snake_case names that aren't "
-			f"reserved (e.g. full_name, not name), rename those inputs to match, then call again."
-		)
-	names = get_input_names(form)
-	if unnamed := [f for f in fieldnames if f not in names]:
-		return (
-			f'DECLINED: no input in the form is named {", ".join(unnamed)} — set name="<fieldname>" on '
-			f"each input (update_block attributes) so it matches its field, then call connect_form again."
-		)
-	return None
-
-
-def get_input_names(form: dict) -> set[str]:
-	return {
-		attributes["name"]
-		for block in walk_blocks(form)
-		if (block.get("originalElement") or block.get("element")) in ("input", "select", "textarea")
-		for attributes in (block.get("attributes") or {}, block.get("customAttributes") or {})
-		if attributes.get("name")
-	}
-
-
 def normalize_field(f: dict) -> dict:
-	return {
-		"fieldname": f["fieldname"],
+	fieldtype = f.get("fieldtype") if f.get("fieldtype") in SAFE_FIELDTYPES else "Data"
+	input_name = frappe.scrub(f["fieldname"])  # the form input's `name` attribute
+	out = {
+		"input_name": input_name,
+		"fieldname": safe_fieldname(input_name),  # DocType fieldname (reserved names remapped)
 		"label": f.get("label") or f["fieldname"].replace("_", " ").title(),
-		"fieldtype": f.get("fieldtype") if f.get("fieldtype") in SAFE_FIELDTYPES else "Data",
+		"fieldtype": fieldtype,
 	}
+	if fieldtype == "Select" and f.get("options"):
+		out["options"] = f["options"]
+	return out
 
 
 def is_builder_submission_doctype(name: str) -> bool:
@@ -152,11 +117,11 @@ connect_form_tool = Tool(
 	description=(
 		"Make a form on the page actually SAVE its submissions to the database. Use this whenever "
 		"you build a real form that collects user input (contact, booking, signup, waitlist, RSVP). "
-		"Under the hood it creates a private DocType for the submissions and points the form's Send to at "
-		"it — the owner reads entries in Desk at /app/<doctype>. The inputs must sit in a <form> block "
-		"(element: form) with the submit button, and each input's name attribute must equal its field's "
-		"fieldname: set both with update_block first. One field per input/select; a radio group is one "
-		"field. Ends your turn to confirm."
+		"Under the hood it creates a private DocType for the submissions, a guest-safe Web Form, and a "
+		"script that sends the form's fields to it — the owner reads entries in Desk at /app/<doctype>. "
+		"List `fields` in the SAME ORDER the inputs appear in the form (they map positionally); one field "
+		"per input/select. `form_selector` is a best-effort hint — the tool auto-finds the form if it "
+		"misses, so you need not pre-set name attributes or a class. Ends your turn to confirm."
 	),
 	parameters={
 		"type": "object",
@@ -178,22 +143,26 @@ connect_form_tool = Tool(
 						"label": {"type": "string"},
 						"fieldtype": {
 							"type": "string",
-							"description": "Data (default), Small Text, Text, Int, Float, Check, Date, Datetime. A dropdown or radio group is saved as Data.",
+							"description": "Data (default), Small Text, Text, Int, Float, Check, Select, Date, Datetime.",
+						},
+						"options": {
+							"type": "string",
+							"description": "For Select: newline-separated choices.",
 						},
 					},
 					"required": ["fieldname"],
 				},
 			},
-			"form_block_id": {
+			"form_selector": {
 				"type": "string",
-				"description": "The ref of the <form> block that holds the inputs (from the page YAML).",
+				"description": "CSS selector of the <form> or its container block, e.g. '.reservation-form'.",
 			},
 			"force_new": {
 				"type": "boolean",
 				"description": "Only set true to add a SEPARATE form when the page already has a connected one.",
 			},
 		},
-		"required": ["doctype_name", "fields", "form_block_id"],
+		"required": ["doctype_name", "fields", "form_selector"],
 	},
 	handler=request_connect_form,
 )

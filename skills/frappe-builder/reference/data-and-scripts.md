@@ -60,12 +60,11 @@ frappectl -s <p> doc update "Builder Page" <page> --input links.json      # {"cl
 
 ## Forms that save
 
-A `form` block delivers each submission to the destinations in its `data-send-to` attribute, a JSON list such as `[{"type":"doctype","value":"Contact Submission"},{"type":"email","value":"me@example.com"}]` (`webhook` takes a URL). The published page seals the list, so visitors can't read or change it, and no page JS is needed.
+Guests can't insert into a DocType directly; a Web Form's `accept` endpoint can:
 
-1. A custom DocType for submissions (`custom: 1`, `naming_rule: "Random"`, System Manager permissions only). Guests need no permission on it. Store dropdown answers as Data unless its options are exactly the values the select submits.
-2. The `form` block, with the inputs and the submit button inside it and `data-send-to` naming the DocType. Each input's `name` is the fieldname it saves to; a submission sets only the fields the form has.
-
-Saving the page needs create permission on that DocType. Frappe's and Builder's own DocTypes, child tables and singles are refused.
+1. A custom DocType for submissions (`custom: 1`, `naming_rule: "Random"`, System Manager permissions only). Store dropdown answers as Data.
+2. A `Web Form` on it: `title`, `published: 1`, `login_required: 0`, `allow_multiple: 1`, the same fields. It also serves its own page at its route.
+3. Page JS that POSTs `{"web_form": "<name>", "data": {...}}` with the CSRF header to `/api/method/frappe.website.doctype.web_form.web_form.accept`.
 
 ## Site-wide
 

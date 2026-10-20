@@ -37,7 +37,7 @@ def safe_fieldname(fieldname: str) -> str:
 	return f"{fieldname}_field" if fieldname in RESERVED_FIELDNAMES else fieldname
 
 
-def create_form_doctype(doctype: str, fields: list[dict], ignore_permissions: bool = False) -> list[str]:
+def create_form_doctype(doctype: str, fields: list[dict]) -> list[str]:
 	"""Make a private DocType for a form's submissions, with a field for each of its inputs.
 	Returns each input's fieldname, which the input is named after so the two match."""
 	docfields = [get_docfield(field, index) for index, field in enumerate(fields)]
@@ -54,7 +54,7 @@ def create_form_doctype(doctype: str, fields: list[dict], ignore_permissions: bo
 			# a guest saves through the form, so no one else needs to read the submissions
 			"permissions": [{"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1}],
 		}
-	).insert(ignore_permissions=ignore_permissions)
+	).insert()
 	return [docfield["fieldname"] for docfield in docfields]
 
 

@@ -780,20 +780,13 @@ export class AIChatController {
 
 	/** Apply or skip a sensitive action the agent proposed (create doctype, seed data,
 	 * global settings, publish). The privileged write happens server-side in the endpoint;
-	 * we reload the session so the message's status flips out of "pending_action", and
-	 * mirror any page edit it saved (connect_form points the form's Send to). */
+	 * we reload the session so the message's status flips out of "pending_action". */
 	confirmPendingAction = async (message: ChatMessage, decision: "apply" | "skip") => {
 		try {
 			const res = await createResource({
 				url: "builder.ai.api.confirm_pending_settings",
 				method: "POST",
 			}).submit({ message_id: message.id, decision });
-			const operations: { tool_name: string; args: Record<string, any> }[] = res?.client_ops || [];
-			if (operations.length) {
-				this.applyServerEdit(() =>
-					operations.forEach((op) => this.dispatcher.applyToolOperation(op.tool_name, op.args)),
-				);
-			}
 			await this.loadSession();
 			if (decision === "apply") toast.success(res?.message || "Applied");
 			if (res?.resumed) this.beginResumedTurn();

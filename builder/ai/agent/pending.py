@@ -11,12 +11,7 @@ the model can only *propose*.
 
 import frappe
 
-from builder.ai import page_writer
-from builder.ai.agent.tree import WorkingTree
 from builder.ai.session import AISession
-from builder.form_doctype import create_form_doctype
-from builder.form_submission import parse_destinations
-from builder.utils import compact_json
 
 # Sensitive action kinds the confirm card understands. Kept explicit so an unknown
 # kind can never be applied.
@@ -59,22 +54,19 @@ def request_confirmation(ctx, kind: str, summary: str, payload: dict) -> None:
 	)
 
 
-def apply_pending_action(kind: str, payload: dict) -> dict:
+def apply_pending_action(kind: str, payload: dict) -> str:
 	"""Run the real mutation for a confirmed action. Called ONLY from the confirm
-	endpoint (user-triggered). Returns a short human summary of what happened as
-	`message`, and the edits it made to the page as `client_ops`, for the open
-	canvas to apply too."""
+	endpoint (user-triggered). Returns a short human summary of what happened."""
 	if kind not in KINDS:
 		frappe.throw(frappe._("Unknown pending action: {0}").format(kind))
 	payload = payload or {}
-	result = {
+	return {
 		"home_page": apply_home_page,
 		"global_settings": apply_global_settings,
 		"create_doctype": apply_create_doctype,
 		"seed_sample_data": apply_seed_sample_data,
 		"connect_form": apply_connect_form,
 	}[kind](payload)
-	return result if isinstance(result, dict) else {"message": result, "client_ops": []}
 
 
 def apply_home_page(payload: dict) -> str:
@@ -153,47 +145,177 @@ def apply_seed_sample_data(payload: dict) -> str:
 	return frappe._("Seeded {0} sample record(s) into {1}").format(created, doctype)
 
 
-def apply_connect_form(payload: dict) -> dict:
-	"""Wire a page form to real data: a private submission DocType (reused if it
-	exists) and the form's Send to pointed at it. Returns the Desk link to the
-	entries, and the same edit for the open canvas to apply."""
+def apply_connect_form(payload: dict) -> str:
+	"""Wire a page form to real data: a private submission DocType + a guest-safe
+	Web Form (the trusted, rate-limited, field-whitelisted boundary) + a client
+	script that POSTs the form's fields to the Web Form's accept endpoint. Reused
+	if the doctype/web form already exist. Returns the Desk link to the entries."""
 	from builder.ai.agent.tools.forms import desk_slug
 
 	doctype = (payload.get("doctype_name") or "").strip()
 	fields = payload.get("fields") or []
 	page_id = (payload.get("page_id") or "").strip()
-	form_block_id = (payload.get("form_block_id") or "").strip()
-	if not doctype or not fields or not page_id or not form_block_id:
-		frappe.throw(frappe._("connect_form needs a doctype, fields, a page and its form"))
+	selector = (payload.get("form_selector") or "").strip()
+	if not doctype or not fields or not selector:
+		frappe.throw(frappe._("connect_form needs a doctype, fields, and a form selector"))
 
-	# confirming is the user's go-ahead, as for create_doctype; submissions need no guest permission
-	if not frappe.db.exists("DocType", doctype):
-		create_form_doctype(doctype, fields, ignore_permissions=True)
-	op = point_form_at(page_id, form_block_id, doctype)
-	message = frappe._(
-		"Form connected. Submissions save to '{0}'. View them in Desk: [/app/{1}](/app/{1})"
-	).format(doctype, desk_slug(doctype))
-	return {"message": message, "client_ops": [op]}
-
-
-def point_form_at(page_id: str, form_block_id: str, doctype: str) -> dict:
-	"""Add the DocType to the form's Send to in the page draft, keeping its other
-	destinations. Returns the edit as a client op, for the canvas to stay in step."""
-	tree = WorkingTree(page_writer.load_page_root(page_id))
-	form = tree.resolve(form_block_id)
-	if form is None:
-		frappe.throw(frappe._("The form is no longer on the page"))
-	attributes = {**(form.get("attributes") or {}), **(form.get("customAttributes") or {})}
-	destinations = [
-		d
-		for d in parse_destinations(attributes.get("data-send-to"))
-		if not (d.get("type") == "doctype" and d.get("value") == doctype)
+	# 1. private submission DocType — System Manager only, NO guest permission
+	#    (the Web Form is the trusted boundary; submissions must not be readable by
+	#    other guests).
+	# Only DocType field keys (drop input_name, which is the browser-side name attr).
+	doctype_fields = [
+		{k: v for k, v in f.items() if k in ("fieldname", "label", "fieldtype", "options")}
+		| {"in_list_view": 1}
+		for f in fields
 	]
-	destinations.append({"type": "doctype", "value": doctype})
-	op = {
-		"tool_name": "update_block",
-		"args": {"block_id": form_block_id, "attributes": {"data-send-to": compact_json(destinations)}},
-	}
-	tree.apply(op["tool_name"], op["args"])
-	page_writer.save_draft_blocks(page_id, tree.root)
-	return op
+	if not frappe.db.exists("DocType", doctype):
+		frappe.get_doc(
+			{
+				"doctype": "DocType",
+				"name": doctype,
+				"module": "Builder",
+				"custom": 1,
+				"naming_rule": "Random",
+				"fields": doctype_fields,
+				"permissions": [{"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1}],
+			}
+		).insert(ignore_permissions=True)
+
+	# 2. Web Form bound to it — guest-allowed (login_required off), published.
+	wf_name = desk_slug(doctype)
+	if not frappe.db.exists("Web Form", wf_name):
+		frappe.get_doc(
+			{
+				"doctype": "Web Form",
+				"name": wf_name,
+				"title": doctype,
+				"route": f"forms/{wf_name}",
+				"doc_type": doctype,
+				"module": "Builder",
+				"published": 1,
+				"login_required": 0,
+				"allow_multiple": 1,
+				"web_form_fields": [
+					{"fieldname": f["fieldname"], "label": f["label"], "fieldtype": f["fieldtype"]}
+					for f in fields
+				],
+			}
+		).insert(ignore_permissions=True)
+
+	# 3. client script on the page: capture the form's fields and POST them to the
+	#    stock Web Form accept endpoint (guest-safe, rate-limited, ignore_permissions).
+	#    Fieldnames in FORM ORDER — the script maps inputs positionally (preferring a
+	#    matching name attr) so it works even if the form has no name attrs/class.
+	if page_id and frappe.db.exists("Builder Page", page_id):
+		ordered_fieldnames = [f["fieldname"] for f in fields]
+		attach_form_script(page_id, doctype, wf_name, selector, ordered_fieldnames)
+	slug = desk_slug(doctype)
+	return frappe._(
+		"Form connected. Submissions save to '{0}'. View them in Desk: [/app/{1}](/app/{1})"
+	).format(doctype, slug)
+
+
+def attach_form_script(page_id: str, doctype: str, web_form: str, selector: str, fieldnames: list) -> None:
+	"""Create + attach a Builder Client Script that submits the form's inputs to
+	the Web Form accept endpoint. Idempotent per (page, web_form)."""
+	script_name = f"Save {doctype} submissions"
+	existing = frappe.db.get_value("Builder Client Script", {"name": script_name}, "name")
+	code = build_form_script(selector, web_form, fieldnames)
+	if existing:
+		# save(), NOT db.set_value — the doc's on_update regenerates the served
+		# public .js file; a bare set_value leaves the page serving stale JS.
+		doc = frappe.get_doc("Builder Client Script", existing)
+		doc.script = code
+		doc.save(ignore_permissions=True)
+		script_id = existing
+	else:
+		script_id = (
+			frappe.get_doc(
+				{
+					"doctype": "Builder Client Script",
+					"name": script_name,
+					"script_type": "JavaScript",
+					"script": code,
+				}
+			)
+			.insert(ignore_permissions=True)
+			.name
+		)
+	page = frappe.get_doc("Builder Page", page_id)
+	if not any(r.builder_script == script_id for r in page.get("client_scripts") or []):
+		page.append("client_scripts", {"builder_script": script_id})
+		page.save(ignore_permissions=True)
+
+
+def build_form_script(selector: str, web_form: str, fieldnames: list) -> str:
+	"""The submit-wiring JS. `fieldnames` are the DocType fieldnames in FORM ORDER.
+	It finds the form (the given selector, else auto-detects the container that best
+	matches — has a submit control and roughly `fieldnames` many inputs), maps each
+	input to a field POSITIONALLY (preferring a matching name attr), and POSTs to
+	the stock accept endpoint. Robust to a form with no name attrs or class."""
+	import json
+
+	sel = json.dumps(selector or "")
+	wf = json.dumps(web_form)
+	fields = json.dumps(fieldnames)
+	return f"""// Auto-wired by Bob: saves this form to the '{web_form}' Web Form.
+(function () {{
+  // The script loads in <head>, before the form is parsed — wait for the DOM.
+  if (document.readyState === 'loading') {{ document.addEventListener('DOMContentLoaded', init); }}
+  else {{ init(); }}
+  function init() {{
+  var SEL = {sel}, WF = {wf}, FIELDS = {fields};
+  var Q = 'input:not([type=hidden]):not([type=submit]):not([type=button]), select, textarea';
+  function findForm() {{
+    if (SEL) {{ var f = document.querySelector(SEL); if (f && f.querySelector(Q)) return f; }}
+    // Fallback: the tightest container that has a submit control and about the
+    // expected number of inputs — the form even without a class hook.
+    var best = null, bestScore = -1;
+    document.querySelectorAll('form, section, div').forEach(function (c) {{
+      var ins = c.querySelectorAll(Q);
+      if (!ins.length || ins.length > 15) return;
+      if (!c.querySelector('button, [type="submit"], [type="button"]')) return;
+      var score = 100 - Math.abs(ins.length - FIELDS.length) * 20 - Math.min(c.querySelectorAll('*').length, 400) / 20;
+      if (score > bestScore) {{ bestScore = score; best = c; }}
+    }});
+    return best;
+  }}
+  var form = findForm();
+  if (!form) return;
+  var inputs = Array.prototype.slice.call(form.querySelectorAll(Q));
+  var btn = form.querySelector('button, [type="submit"], input[type="submit"], [type="button"]');
+  var busy = false;
+  function submit(e) {{
+    if (e) e.preventDefault();
+    if (busy) return false;
+    var data = {{}};
+    inputs.forEach(function (el, i) {{
+      var fn = (el.name && FIELDS.indexOf(el.name) !== -1) ? el.name : FIELDS[i];
+      if (fn && (el.value || '').trim()) data[fn] = el.value;
+    }});
+    if (!Object.keys(data).length) return false;
+    busy = true;
+    var label = btn && btn.textContent;
+    if (btn) {{ btn.textContent = 'Sending…'; btn.disabled = true; }}
+    fetch('/api/method/frappe.website.doctype.web_form.web_form.accept', {{
+      method: 'POST',
+      headers: {{ 'Content-Type': 'application/json' }},
+      body: JSON.stringify({{ web_form: WF, data: data }})
+    }}).then(function (r) {{ if (!r.ok) throw r; return r.json(); }})
+      .then(function () {{
+        if (btn) btn.textContent = 'Thank you!';
+        inputs.forEach(function (el) {{ el.value = ''; }});
+      }})
+      .catch(function () {{
+        busy = false;
+        if (btn) {{ btn.textContent = label || 'Try again'; btn.disabled = false; }}
+      }});
+    return false;
+  }}
+  // Attach to BOTH: the button click (fires whether or not it's type=submit) and,
+  // for a real <form>, the submit event (Enter key). The busy flag dedupes.
+  if (btn) btn.addEventListener('click', submit);
+  if (form.tagName === 'FORM') form.addEventListener('submit', submit);
+  }}
+}})();
+"""
