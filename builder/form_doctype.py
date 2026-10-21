@@ -1,5 +1,8 @@
+import re
+
 import frappe
 from frappe.model import child_table_fields, default_fields
+from frappe.model.base_document import RESERVED_KEYWORDS
 
 # what a form's inputs can be saved as; anything else is saved as Data
 FIELDTYPES = {
@@ -22,6 +25,7 @@ FIELDTYPES = {
 RESERVED_FIELDNAMES = (
 	set(default_fields)
 	| set(child_table_fields)
+	| RESERVED_KEYWORDS
 	| {
 		"name",
 		"parent",
@@ -59,12 +63,15 @@ def create_form_doctype(doctype: str, fields: list[dict]) -> list[str]:
 
 
 def get_docfield(field: dict, index: int) -> dict:
-	name = field.get("fieldname") or field.get("label") or f"field_{index + 1}"
-	fieldname = safe_fieldname(frappe.scrub(name))[:64]
+	name = field.get("fieldname") or field.get("label") or ""
+	# Frappe drops or refuses other characters, and the input is renamed to the stored name
+	fieldname = safe_fieldname(
+		re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")[:64] or f"field_{index + 1}"
+	)
 	fieldtype = field.get("fieldtype") if field.get("fieldtype") in FIELDTYPES else "Data"
 	return {
 		"fieldname": fieldname,
-		"label": field.get("label") or name.replace("_", " ").title(),
+		"label": field.get("label") or (name or fieldname).replace("_", " ").title(),
 		"fieldtype": fieldtype,
 		"options": field.get("options") if fieldtype in ("Data", "Select") else None,
 		"reqd": 1 if field.get("reqd") else 0,
