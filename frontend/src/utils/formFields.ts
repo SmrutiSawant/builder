@@ -53,7 +53,11 @@ const INPUT_TYPES: Record<string, string> = {
 const LONG_TEXT_FIELDTYPES = new Set(["Small Text", "Text", "Long Text"]);
 
 // the Form parts block template a choice field is added from
-const FIELD_TEMPLATES: Record<string, string> = { Select: "Select", Check: "Checkbox" };
+const FIELD_TEMPLATES: Record<string, string> = {
+	Select: "Select",
+	Autocomplete: "Select",
+	Check: "Checkbox",
+};
 
 // inputs that only act on the form, and files, which a submission can't carry
 const SKIPPED_INPUT_TYPES = new Set(["submit", "reset", "button", "image", "file"]);
