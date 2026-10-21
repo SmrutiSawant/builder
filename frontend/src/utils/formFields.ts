@@ -120,13 +120,13 @@ class FormDoctypeCheck {
 	describe() {
 		const { renames, additions, unfillable, removals } = this.planFix();
 		if (unfillable.length) {
-			return __("A form can't fill in {0}.", [unfillable.map((df) => df.label).join(", ")]);
+			return __("A form can't fill in {0}.", [listLabels(unfillable.map((df) => df.label))]);
 		}
 		const changes = [
-			additions.length && __("adds {0}", [additions.map((df) => df.label).join(", ")]),
+			additions.length && __("adds {0}", [listLabels(additions.map((df) => df.label))]),
 			renames.size &&
-				__("saves {0}", [[...renames].map(([input, df]) => describeRename(input, df)).join(", ")]),
-			removals.length && __("removes {0}", [removals.map(getInputLabel).join(", ")]),
+				__("saves {0}", [listLabels([...renames].map(([input, df]) => describeRename(input, df)))]),
+			removals.length && __("removes {0}", [listLabels(removals.map(getInputLabel))]),
 		].filter(Boolean) as string[];
 		return changes.length ? __("Fix form {0}.", [joinWithAnd(changes)]) : "";
 	}
@@ -157,7 +157,7 @@ class FormDoctypeCheck {
 			// picking another DocType replaces the warning
 			id: "form-doctype-check",
 			description: this.describe(),
-			duration: 15000,
+			duration: Infinity,
 			action: this.getAction(),
 		});
 	}
@@ -185,7 +185,7 @@ class FormDoctypeCheck {
 		removals.forEach((input) => removeFormField(this.form, input));
 		// a new toast, since the warning closes once its action runs
 		toast.success(__("The form now matches {0}", [this.doctype]), {
-			description: removed.length ? __("Removed {0}.", [removed.join(", ")]) : undefined,
+			description: removed.length ? __("Removed {0}.", [listLabels(removed)]) : undefined,
 		});
 	}
 }
@@ -197,6 +197,11 @@ const describeRename = (input: Block, df: DoctypeField) => {
 	const label = getInputLabel(input);
 	return normalize(label) === normalize(df.label) ? label : __("{0} as {1}", [label, df.label]);
 };
+
+const listLabels = (labels: string[]) =>
+	labels.length > 6
+		? __("{0} and {1} more", [labels.slice(0, 5).join(", "), labels.length - 5])
+		: labels.join(", ");
 
 const joinWithAnd = (parts: string[]) =>
 	parts.length > 1 ? __("{0} and {1}", [parts.slice(0, -1).join(", "), parts[parts.length - 1]]) : parts[0];
