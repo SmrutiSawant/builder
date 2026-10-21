@@ -9,7 +9,7 @@ from frappe.utils.password import decrypt, encrypt
 
 MAX_VALUE_LENGTH = 5000
 # what a visitor fills in, like a phone number or a choice, unlike a count
-VISITOR_FIELDTYPES = {"Data", "Small Text", "Text", "Long Text", "Phone", "Select", "Check"}
+VISITOR_FIELDTYPES = {"Data", "Small Text", "Text", "Long Text", "Phone", "Select", "Autocomplete", "Check"}
 
 
 def parse_destinations(destinations: str | None) -> list[dict]:
