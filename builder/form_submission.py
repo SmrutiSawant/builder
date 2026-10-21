@@ -117,7 +117,7 @@ def list_form_doctype_fields(doctype: str) -> list[dict]:
 	that leaves it empty, and a `suggested` one is optional but a visitor's to fill in."""
 	meta = frappe.get_meta(doctype)
 	visitor_fields = get_visitor_fields(meta)
-	needed = get_needed_fields(doctype)
+	needed = get_needed_fields(doctype, visitor_fields)
 	return [
 		{
 			"fieldname": df.fieldname,
@@ -147,16 +147,26 @@ def get_visitor_fields(meta) -> set[str]:
 
 def is_visitor_field(df) -> bool:
 	# the site sets a read-only, fetched or restricted field itself, and a record's status
-	if df.read_only or df.hidden or df.fetch_from or df.permlevel or df.fieldname == "status":
+	if (
+		df.read_only
+		or df.hidden
+		or df.fetch_from
+		or df.permlevel
+		or df.fieldname in ("status", "naming_series")
+	):
 		return False
 	# a defaulted field is the site's too, but a checkbox's "0" is only its unticked state
 	return df.fieldtype in VISITOR_FIELDTYPES and df.default in (None, "", "0")
 
 
-def get_needed_fields(doctype: str) -> set[str]:
+def get_needed_fields(doctype: str, visitor_fields: set[str]) -> set[str]:
 	# a new record has its defaults, so only the required fields still empty need the form
 	doc = frappe.new_doc(doctype)
 	needed = {fieldname for fieldname, _msg in doc._get_missing_mandatory_fields()}
+	# a new record also picks a select's first option, but a required choice is still the visitor's
+	needed |= {
+		df.fieldname for df in doc.meta.get_select_fields() if df.reqd and df.fieldname in visitor_fields
+	}
 	# a record named after a field can't be saved without it, even if it isn't required
 	if (doc.meta.autoname or "").startswith("field:") and not doc.get(doc.meta.autoname[6:]):
 		needed.add(doc.meta.autoname[6:])
@@ -198,10 +208,19 @@ class FormSubmission:
 		doc = frappe.new_doc(doctype)
 		for fieldname in fieldnames:
 			df = meta.get_field(fieldname)
-			if df and fieldname in self.data and is_form_field(df):
-				# a checkbox is only submitted when it is checked, whatever its value
-				doc.set(fieldname, 1 if df.fieldtype == "Check" else self.data[fieldname])
+			if df and is_form_field(df):
+				self.set_value(doc, df)
 		doc.insert(ignore_permissions=True)
+
+	def set_value(self, doc, df):
+		# a checkbox is only submitted when it is checked, whatever its value
+		if df.fieldtype == "Check":
+			doc.set(df.fieldname, int(df.fieldname in self.data))
+		elif df.fieldname in self.data:
+			doc.set(df.fieldname, self.data[df.fieldname])
+		# a select left on its placeholder isn't submitted, and shouldn't keep the record's first option
+		elif df.fieldtype == "Select" and not df.default:
+			doc.set(df.fieldname, "")
 
 	def send_email(self, recipients: list[str]):
 		try:
