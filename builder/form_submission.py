@@ -115,6 +115,8 @@ def list_form_doctypes() -> list[str]:
 def list_form_doctype_fields(doctype: str) -> list[dict]:
 	"""The fields a form can fill in this DocType. A `needed` one fails every submission
 	that leaves it empty, and a `suggested` one is optional but a visitor's to fill in."""
+	meta = frappe.get_meta(doctype)
+	visitor_fields = get_visitor_fields(meta)
 	needed = get_needed_fields(doctype)
 	return [
 		{
@@ -123,11 +125,24 @@ def list_form_doctype_fields(doctype: str) -> list[dict]:
 			"fieldtype": df.fieldtype,
 			"options": df.options,
 			"needed": df.fieldname in needed,
-			"suggested": df.fieldname not in needed and is_visitor_field(df),
+			"suggested": df.fieldname not in needed and df.fieldname in visitor_fields,
 		}
-		for df in frappe.get_meta(doctype).fields
+		for df in meta.fields
 		if is_form_field(df) or df.fieldname in needed
 	]
+
+
+def get_visitor_fields(meta) -> set[str]:
+	# a field in a hidden section or tab is the site's to fill, like the page a visitor came from
+	fieldnames, hidden_tab, hidden_section = set(), False, False
+	for df in meta.fields:
+		if df.fieldtype == "Tab Break":
+			hidden_tab, hidden_section = bool(df.hidden), False
+		elif df.fieldtype == "Section Break":
+			hidden_section = bool(df.hidden)
+		elif not (hidden_tab or hidden_section) and is_visitor_field(df):
+			fieldnames.add(df.fieldname)
+	return fieldnames
 
 
 def is_visitor_field(df) -> bool:
