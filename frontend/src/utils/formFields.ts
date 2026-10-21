@@ -1,5 +1,6 @@
 import type Block from "@/block";
 import useBlockTemplateStore from "@/stores/blockTemplateStore";
+import useCanvasStore from "@/stores/canvasStore";
 import { __ } from "@/translation";
 import { escapeHtml, getBlockInstance, getBlockObject } from "@/utils/helpers";
 import { createResource, toast } from "frappe-ui";
@@ -98,6 +99,28 @@ async function checkFormDoctype(form: Block, doctype: string, createDoctype?: ()
 	const fields = await createResource({ url: "builder.api.get_form_doctype_fields" }).submit({ doctype });
 	const check = new FormDoctypeCheck(form, doctype, fields, createDoctype);
 	if (check.describe()) check.warn();
+}
+
+// checked again on publish, since a form can drift from its DocType after it was picked
+function checkPageForms(root: Block) {
+	for (const form of getForms(root)) {
+		const destinations = form.getFormDestinations().filter((destination) => destination.value);
+		const doctype = destinations.find((destination) => destination.type === "doctype")?.value;
+		if (doctype) checkFormDoctype(form, doctype);
+		else if (!destinations.length && !form.getEffectiveAttribute("action")) warnUnsentForm(form);
+	}
+}
+
+const getForms = (block: Block): Block[] =>
+	block.isForm() ? [block] : block.getChildren().flatMap(getForms);
+
+function warnUnsentForm(form: Block) {
+	toast.warning(__("A form on this page doesn't send its submissions anywhere"), {
+		id: "form-unsent",
+		description: __("Add an email, webhook or DocType in its Send to, or visitors' answers are lost."),
+		duration: Infinity,
+		action: { label: __("Select form"), onClick: () => useCanvasStore().selectBlock(form, null, true, true) },
+	});
 }
 
 class FormDoctypeCheck {
@@ -363,4 +386,4 @@ function getFieldOptions(field: Block) {
 	if (field.getEffectiveAttribute("type") === "email") return "Email";
 }
 
-export { checkFormDoctype, getFieldSchema, getFormFields, nameFormFields };
+export { checkFormDoctype, checkPageForms, getFieldSchema, getFormFields, nameFormFields };
