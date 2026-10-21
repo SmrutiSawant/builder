@@ -794,7 +794,7 @@ def get_page_ctr(
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
-@rate_limit(limit=5, seconds=60)
+@rate_limit(limit=10, seconds=60)
 def submit_form(send_to: str, data: dict):
 	"""Deliver a published form's submission to the destinations set in its Form section."""
 	path = urlparse(frappe.request.headers.get("Referer") or "").path or "/"
