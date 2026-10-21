@@ -24,7 +24,6 @@ interface DoctypeField {
 // the DocType field an input type is saved as; the rest are saved as Data
 const FIELDTYPES: Record<string, string> = {
 	checkbox: "Check",
-	number: "Float",
 	date: "Date",
 	time: "Time",
 	"datetime-local": "Datetime",
@@ -51,6 +50,8 @@ const INPUT_TYPES: Record<string, string> = {
 };
 
 const LONG_TEXT_FIELDTYPES = new Set(["Small Text", "Text", "Long Text"]);
+
+const DECIMAL_FIELDTYPES = new Set(["Float", "Currency", "Percent"]);
 
 // the Form parts block template a choice field is added from
 const FIELD_TEMPLATES: Record<string, string> = {
@@ -253,6 +254,7 @@ function copyTextInput(form: Block, df: DoctypeField) {
 		placeholder: df.label,
 		"aria-label": df.label,
 		type: template.isTextarea() ? undefined : getInputType(df),
+		step: DECIMAL_FIELDTYPES.has(df.fieldtype) ? "any" : undefined,
 		required: df.needed ? "required" : undefined,
 	};
 	return getBlockInstance({ ...getBlockObject(template), attributes, customAttributes: {} }, false);
@@ -330,6 +332,10 @@ function getFieldLabel(field: Block) {
 function getFieldType(field: Block) {
 	if (field.isRadioGroup() || field.isSelect()) return "Select";
 	if (field.isTextarea()) return "Small Text";
+	// a number input takes whole numbers unless its step allows decimals
+	if (field.getEffectiveAttribute("type") === "number") {
+		return /^\d+$/.test(String(field.getEffectiveAttribute("step") ?? "1")) ? "Int" : "Float";
+	}
 	return FIELDTYPES[field.getEffectiveAttribute("type") as string] || "Data";
 }
 
