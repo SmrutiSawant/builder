@@ -1,10 +1,11 @@
 import json
+import re
 
 import frappe
 import requests
 from frappe import _
 from frappe.model import attachment_fieldtypes, no_value_fields
-from frappe.utils import cstr, escape_html, validate_email_address
+from frappe.utils import cstr, escape_html, strip_html, validate_email_address
 from frappe.utils.password import decrypt, encrypt
 
 MAX_VALUE_LENGTH = 5000
@@ -205,7 +206,12 @@ class FormSubmission:
 			df = meta.get_field(fieldname)
 			if df and is_form_field(df):
 				self.set_value(doc, df)
-		doc.insert(ignore_permissions=True)
+		try:
+			doc.insert(ignore_permissions=True)
+		except frappe.ValidationError:
+			# the published form shows why on the input the visitor can fix
+			frappe.response["invalid_field"] = self.get_invalid_field(doc, fieldnames)
+			raise
 
 	def set_value(self, doc, df):
 		# a checkbox is only submitted when it is checked, whatever its value
@@ -216,6 +222,19 @@ class FormSubmission:
 		# a select left on its placeholder isn't submitted, and shouldn't keep the record's first option
 		elif df.fieldtype == "Select" and not df.default:
 			doc.set(df.fieldname, "")
+
+	def get_invalid_field(self, doc, fieldnames: list[str]) -> dict | None:
+		missing = [f for f, _msg in doc._get_missing_mandatory_fields() if f in fieldnames]
+		if missing:
+			label = _(doc.meta.get_label(missing[0]))
+			return {"name": missing[0], "message": _("{0} is required").format(label)}
+		message = strip_html(cstr(frappe.message_log[-1].get("message"))) if frappe.message_log else ""
+		fields = [df for df in map(doc.meta.get_field, fieldnames) if df]
+		# a refused value's message names its field or label, or else quotes the value
+		named = [df for df in fields if mentions(message, df.fieldname, df.label)]
+		quoted = [df for df in fields if mentions(message, self.data.get(df.fieldname))]
+		if named or quoted:
+			return {"name": (named or quoted)[0].fieldname, "message": message.strip()}
 
 	def send_email(self, recipients: list[str]):
 		try:
@@ -235,6 +254,11 @@ class FormSubmission:
 			for key, value in self.data.items()
 		)
 		return f"<table>{rows}</table>"
+
+
+def mentions(message: str, *texts: str | None) -> bool:
+	words = "|".join(re.escape(text) for text in texts if text and len(text) > 2)
+	return bool(words and re.search(rf"(?<!\w)({words})(?!\w)", message, re.I))
 
 
 def is_form_field(df) -> bool:
