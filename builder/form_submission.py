@@ -7,7 +7,6 @@ from frappe.model import attachment_fieldtypes, no_value_fields
 from frappe.utils import cstr, escape_html, validate_email_address
 from frappe.utils.password import decrypt, encrypt
 
-MAX_FIELDS = 50
 MAX_VALUE_LENGTH = 5000
 # what a visitor fills in, like a phone number or a choice, unlike a count
 VISITOR_FIELDTYPES = {"Data", "Small Text", "Text", "Long Text", "Phone", "Select", "Check"}
@@ -22,12 +21,9 @@ def parse_destinations(destinations: str | None) -> list[dict]:
 
 
 def seal_destinations(destinations: str, fieldnames: list[str]) -> str:
-	"""A DocType destination is sealed with the form's own field names: the only fields
-	a visitor's submission may set on the record it creates."""
-	sealed = [
-		d | {"fields": fieldnames} if d.get("type") == "doctype" else d
-		for d in parse_destinations(destinations)
-	]
+	"""Each destination is sealed with the form's own field names: the only values a
+	visitor's submission may deliver to it."""
+	sealed = [d | {"fields": fieldnames} for d in parse_destinations(destinations)]
 	return encrypt(json.dumps(sealed))
 
 
@@ -179,9 +175,8 @@ class FormSubmission:
 
 	def __init__(self, sealed_destinations: str, data: dict, path: str):
 		self.destinations = unseal_destinations(sealed_destinations)
-		self.data = {
-			key[:140]: cstr(value)[:MAX_VALUE_LENGTH] for key, value in list(data.items())[:MAX_FIELDS] if key
-		}
+		fieldnames = {fieldname for d in self.destinations for fieldname in d.get("fields") or []}
+		self.data = {key: cstr(value)[:MAX_VALUE_LENGTH] for key, value in data.items() if key in fieldnames}
 		self.path = path
 
 	def deliver(self):
