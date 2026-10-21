@@ -9,6 +9,7 @@ import { __ } from "@/translation";
 import { BuilderClientScript, BuilderPage } from "@/types/doctypes";
 import getBlockTemplate from "@/utils/blockTemplate";
 import { editorDemo } from "@/utils/editorDemo";
+import { checkPageForms } from "@/utils/formFields";
 import {
 	confirm,
 	countBlocks,
@@ -249,6 +250,8 @@ const usePageStore = defineStore("pageStore", {
 					if (openInBrowser) {
 						this.openPageInBrowser(this.activePage as BuilderPage);
 					}
+					const canvasStore = useCanvasStore();
+					if (canvasStore.editingMode === "page") checkPageForms(canvasStore.getRootBlock() as Block);
 				});
 		},
 
