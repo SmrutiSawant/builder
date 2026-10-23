@@ -92,7 +92,7 @@ const getFieldProps = (destination: FormDestination, index: number) =>
 const getCreateDoctypeAction = (index: number) => {
 	if (!props.createDoctype || !formDoctypes.data?.can_create) return;
 	return {
-		label: __("New DocType from this form"),
+		label: __("New DocType"),
 		icon: "lucide-plus",
 		handler: async () => {
 			const doctype = await props.createDoctype?.();
