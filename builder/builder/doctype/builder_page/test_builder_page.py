@@ -1085,6 +1085,32 @@ class TestBuilderPage(FrappeTestCase):
 			frappe.local.flags.redirect_location = None
 			page.delete()
 
+	def test_failing_data_script_still_renders_the_page(self):
+		heading = Block(element="h1", innerHTML="Fallback")
+		heading.set_dynamic_value("title", "key", "innerHTML")
+		body = Block(element="div", originalElement="body")
+		body.attach_children(heading, Block(element="p", innerHTML="Rest of the page"))
+		page = frappe.get_doc(
+			{
+				"doctype": "Builder Page",
+				"page_title": "Failing Data Script Test",
+				"published": 1,
+				"route": "/failing-data-script-test",
+				"page_data_script": 'data.title = "Set before the error"\nx = 1 / 0',
+				"blocks": body.as_json(wrap_in_array=True),
+			}
+		).insert()
+		try:
+			response = get_response("/failing-data-script-test")
+			self.assertEqual(response.status_code, 200)
+			content = response.get_data(as_text=True)
+			self.assertIn("Set before the error", content)
+			self.assertIn("Rest of the page", content)
+			# the editor still shows the error
+			self.assertRaises(ZeroDivisionError, page.get_page_data)
+		finally:
+			page.delete()
+
 	def test_component_client_script(self):
 		component_root = Block(element="div", blockId="comp-root")
 		component_content = Block(element="h4", blockId="comp-content", innerHTML="Component Content")
