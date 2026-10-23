@@ -61,6 +61,8 @@ const FIELD_TEMPLATES: Record<string, string> = {
 	Check: "Checkbox",
 };
 
+const SUBMIT_BUTTON_TEMPLATE = "Form 1";
+
 // inputs that only act on the form, and files, which a submission can't carry
 const SKIPPED_INPUT_TYPES = new Set(["submit", "reset", "button", "image", "file"]);
 
@@ -104,6 +106,7 @@ async function checkFormDoctype(form: Block, doctype: string, createDoctype?: ()
 // checked again on publish, since a form can drift from its DocType after it was picked
 function checkPageForms(root: Block) {
 	for (const form of getForms(root)) {
+		if (!hasButton(form)) warnNoSubmitButton(form);
 		const destinations = form.getFormDestinations().filter((destination) => destination.value);
 		const doctype = destinations.find((destination) => destination.type === "doctype")?.value;
 		if (doctype) checkFormDoctype(form, doctype);
@@ -121,6 +124,24 @@ function warnUnsentForm(form: Block) {
 		duration: Infinity,
 		action: { label: __("Select form"), onClick: () => useCanvasStore().selectBlock(form, null, true, true) },
 	});
+}
+
+// the Button block is a link, which doesn't submit, so a form that lost its button has none to drop in
+function warnNoSubmitButton(form: Block) {
+	toast.warning(__("A form on this page has no submit button"), {
+		id: "form-no-submit-button",
+		description: __("Visitors can't send it."),
+		duration: Infinity,
+		action: { label: __("Add button"), onClick: () => addSubmitButton(form) },
+	});
+}
+
+// the Basic Forms templates' button, with its Sending, Success and Error variants
+async function addSubmitButton(form: Block) {
+	await useBlockTemplateStore().fetchBlockTemplate(SUBMIT_BUTTON_TEMPLATE);
+	const template = useBlockTemplateStore().getBlockTemplate(SUBMIT_BUTTON_TEMPLATE);
+	const button = getBlockInstance(template.block, false).getChildren().find(isButton);
+	if (button) form.addChild(getBlockObject(button), null);
 }
 
 class FormDoctypeCheck {
