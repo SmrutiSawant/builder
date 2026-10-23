@@ -712,13 +712,24 @@ class BuilderPage(WebsiteGenerator):
 					raise frappe.Redirect(http_status_code)
 
 			_locals = dict(data=frappe._dict(), redirect=redirect)
-			execute_script(self.page_data_script, _locals, self.name)
+			self.run_page_data_script(_locals, for_render)
 			page_data.update(_locals["data"])
 
 		# do not let users replace __content
 		page_data.pop("__content", None)
 
 		return page_data
+
+	def run_page_data_script(self, _locals: dict, for_render: bool):
+		try:
+			execute_script(self.page_data_script, _locals, self.name)
+		except (frappe.Redirect, frappe.DoesNotExistError, frappe.PermissionError):
+			raise
+		except Exception:
+			# the editor shows the error, but a visitor gets the page with the data set before it, not a 500
+			if not for_render:
+				raise
+			frappe.log_error(f"Data script of Builder Page {self.name} failed")
 
 	def generate_page_preview_image(self, html=None):
 		public_path, local_path = get_builder_page_preview_file_paths(self)
