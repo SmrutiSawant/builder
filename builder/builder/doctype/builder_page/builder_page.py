@@ -1499,10 +1499,12 @@ def set_dynamic_content_placeholders(block: dict, data_key: dict | None = None):
 			custom_attributes = block.setdefault("customAttributes", {})
 			if property_name in custom_attributes:
 				current_value = custom_attributes.get(property_name, "") or ""
-				custom_attributes[property_name] = build_placeholder(keys, current_value, keep_empty=True)
+				custom_attributes[property_name] = build_placeholder(
+					keys, current_value, keep_empty=True, escape=True
+				)
 			else:
 				current_value = attributes.get(property_name) or ""
-				attributes[property_name] = build_placeholder(keys, current_value)
+				attributes[property_name] = build_placeholder(keys, current_value, escape=True)
 
 		elif value_type == "style":
 			attributes = block.setdefault("attributes", {})
@@ -1511,7 +1513,7 @@ def set_dynamic_content_placeholders(block: dict, data_key: dict | None = None):
 
 			css_property = camel_case_to_kebab_case(property_name)
 			current_value = (block.get("baseStyles") or {}).get(property_name, "") or ""
-			attributes["style"] += f"{css_property}: {build_placeholder(keys, current_value)};"
+			attributes["style"] += f"{css_property}: {build_placeholder(keys, current_value, escape=True)};"
 
 		elif value_type == "key" and not block.get("isRepeaterBlock"):
 			current_value = block.get(property_name, "")
@@ -1551,7 +1553,7 @@ def resolve_binding_keys(binding: list[dict], data_key: dict | None) -> list[str
 	return keys
 
 
-def build_placeholder(keys: list[str], fallback_value, keep_empty: bool = False) -> str:
+def build_placeholder(keys: list[str], fallback_value, keep_empty: bool = False, escape: bool = False) -> str:
 	"""Chain the keys into one placeholder so the first that resolves wins.
 
 	Chaining inside a single expression, rather than applying a placeholder per key, keeps the raw
@@ -1563,7 +1565,8 @@ def build_placeholder(keys: list[str], fallback_value, keep_empty: bool = False)
 			expression = f"{key} if {key} or {key} in ['', 0] else {expression}"
 		else:
 			expression = f"{key} or {expression}"
-	return f"{{{{ {expression} }}}}"
+	# an attribute's value can come from the request, like a URL parameter, so it mustn't close the attribute
+	return f"{{{{ ({expression}) | e }}}}" if escape else f"{{{{ {expression} }}}}"
 
 
 def wrap_html_with_context(html: str, context: dict) -> str:

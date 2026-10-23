@@ -527,6 +527,35 @@ class TestBuilderPage(FrappeTestCase):
 		finally:
 			page.delete()
 
+	def test_dynamic_attribute_values_cannot_close_the_attribute(self):
+		"""A form field prefilled from a URL parameter puts the visitor's text in an attribute."""
+		body = Block(element="div", originalElement="body")
+		job = Block(element="input", customAttributes={"type": "hidden", "value": "job"})
+		job.set_dynamic_value("job", "attribute", "value")
+		heading = Block(element="h2", innerHTML="Heading")
+		heading.set_dynamic_value("color", "style", "color")
+		body.attach_children(job, heading)
+		page = frappe.get_doc(
+			{
+				"doctype": "Builder Page",
+				"page_title": "Escaped Dynamic Attribute Test",
+				"published": 1,
+				"route": "/escaped-dynamic-attribute-test",
+				"page_data_script": (
+					"data.job = '\"><script>alert(1)</script>'\ndata.color = 'red\" onmouseover=\"alert(1)'"
+				),
+				"blocks": body.as_json(wrap_in_array=True),
+			}
+		).insert()
+
+		try:
+			content = get_response_content("/escaped-dynamic-attribute-test")
+			self.assertNotIn("<script>alert(1)", content)
+			self.assertNotIn(' onmouseover="', content)
+			self.assertEqual('"><script>alert(1)</script>', get_html_for(content, "attribute", "value"))
+		finally:
+			page.delete()
+
 	def dotted_key_blocks(self):
 		body = Block(element="div", originalElement="body")
 		heading = Block(element="h1", innerHTML="Fallback title")
