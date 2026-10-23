@@ -177,10 +177,11 @@ class FormSubmission:
 	def __init__(self, sealed_destinations: str, data: dict, path: str):
 		self.destinations = unseal_destinations(sealed_destinations)
 		fieldnames = {fieldname for d in self.destinations for fieldname in d.get("fields") or []}
-		self.data = {key: cstr(value)[:MAX_VALUE_LENGTH] for key, value in data.items() if key in fieldnames}
+		self.data = {key: cstr(value) for key, value in data.items() if key in fieldnames}
 		self.path = path
 
 	def deliver(self):
+		self.check_lengths()
 		# saved first, so a submission its DocType rejects isn't emailed or posted either
 		for destination in self.destinations:
 			if destination.get("type") == "doctype" and destination.get("value"):
@@ -189,6 +190,16 @@ class FormSubmission:
 			self.send_email(recipients)
 		for url in self.get_destinations("webhook"):
 			frappe.enqueue(post_to_webhook, url=url, data=self.data, enqueue_after_commit=True)
+
+	def check_lengths(self):
+		# cutting a long answer short would lose its end without the visitor knowing
+		for key, value in self.data.items():
+			if len(value) > MAX_VALUE_LENGTH:
+				message = _("This is {0} characters long, and can be at most {1}.").format(
+					len(value), MAX_VALUE_LENGTH
+				)
+				frappe.response["invalid_field"] = {"name": key, "message": message}
+				frappe.throw(message)
 
 	def get_destinations(self, destination_type: str) -> list[str]:
 		values = (

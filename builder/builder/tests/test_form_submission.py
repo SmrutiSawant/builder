@@ -104,6 +104,16 @@ class TestFormSubmission(FrappeTestCase):
 
 		self.assertIsNone(frappe.get_last_doc(DOCTYPE).notes)
 
+	def test_refuses_a_value_too_long_instead_of_cutting_it_short(self):
+		block = form_block([{"type": "doctype", "value": DOCTYPE}], [{"name": "full_name"}])
+		count = frappe.db.count(DOCTYPE)
+
+		with self.assertRaises(frappe.ValidationError):
+			FormSubmission(sealed_destinations(block), {"full_name": "x" * 6000}, "/").deliver()
+
+		self.assertEqual(frappe.response.pop("invalid_field")["name"], "full_name")
+		self.assertEqual(frappe.db.count(DOCTYPE), count)
+
 	def test_lists_the_fields_a_form_can_fill_and_the_ones_it_must(self):
 		fields = list_form_doctype_fields(SIGNUP_DOCTYPE)
 
