@@ -492,6 +492,31 @@ class Block implements BlockOptions {
 	getFormBlock(): Block | null {
 		return this.isForm() ? this : this.getParentBlock()?.getFormBlock() || null;
 	}
+	// a copied or dropped-in field would submit under another field's name, and the two answers arrive
+	// joined as one; checkboxes and radios share a name on purpose
+	giveFieldsUniqueNames() {
+		const form = this.getParentBlock()?.getFormBlock();
+		if (!form) return;
+		const named = (block: Block): Block[] => [
+			...((block.isInput() || block.isSelect()) && !block.isCheckable() && block.getEffectiveAttribute("name")
+				? [block]
+				: []),
+			...block.getChildren().flatMap(named),
+		];
+		const copies = named(this);
+		const taken = new Set(
+			named(form)
+				.filter((field) => !copies.includes(field))
+				.map((field) => String(field.getEffectiveAttribute("name"))),
+		);
+		for (const copy of copies) {
+			const name = String(copy.getEffectiveAttribute("name"));
+			let unique = name;
+			for (let n = 2; taken.has(unique); n++) unique = `${name}_${n}`;
+			if (unique !== name) copy.setEffectiveAttribute("name", unique);
+			taken.add(unique);
+		}
+	}
 	// the state its form shows on the canvas, picked in Form > State; it is never saved
 	getFormStatePreview() {
 		const form = this.getFormBlock();
@@ -1222,6 +1247,7 @@ class Block implements BlockOptions {
 		} else {
 			child = canvasStore.activeCanvas?.getRootBlock().addChild(blockCopy) as Block;
 		}
+		child?.giveFieldsUniqueNames();
 		nextTick(() => {
 			if (child) {
 				child.selectBlock();

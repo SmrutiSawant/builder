@@ -238,7 +238,8 @@ export function useCanvasDropZone(
 				parentParentBlock.children.splice(index, 1, newBlock);
 			} else {
 				if (!parentBlock) return;
-				parentBlock.addChild(newBlock, index);
+				// a second Select or Checkbox in a form would submit under the first one's name
+				parentBlock.addChild(newBlock, index).giveFieldsUniqueNames();
 			}
 			capture("builder_block_template_used", { template: blockTemplate });
 		}
