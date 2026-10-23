@@ -34,12 +34,13 @@ const inputOptionsSectionProperties = [
 					{ label: __("Phone number"), value: "tel" },
 					{ label: __("URL"), value: "url" },
 					{ label: __("Color"), value: "color" },
+					{ label: __("Hidden"), value: "hidden" },
 				],
 				modelValue: blockController.getEffectiveAttribute("type") || "text",
 			};
 		},
 		searchKeyWords:
-			"Input, Type, InputType, Input Type, Text, Number, Email, Password, Date, Time, Search, Tel, Url, Color, tag",
+			"Input, Type, InputType, Input Type, Text, Number, Email, Password, Date, Time, Search, Tel, Url, Color, Hidden, tag",
 		events: {
 			"update:modelValue": (val: string) => blockController.setEffectiveAttribute("type", val),
 		},
