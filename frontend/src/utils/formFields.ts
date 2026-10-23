@@ -107,6 +107,7 @@ async function checkFormDoctype(form: Block, doctype: string, createDoctype?: ()
 function checkPageForms(root: Block) {
 	for (const form of getForms(root)) {
 		if (!hasButton(form)) warnNoSubmitButton(form);
+		if (hasFileInput(form)) warnFileInput(form);
 		const destinations = form.getFormDestinations().filter((destination) => destination.value);
 		const doctype = destinations.find((destination) => destination.type === "doctype")?.value;
 		if (doctype) checkFormDoctype(form, doctype);
@@ -133,6 +134,22 @@ function warnNoSubmitButton(form: Block) {
 		description: __("Visitors can't send it."),
 		duration: Infinity,
 		action: { label: __("Add button"), onClick: () => addSubmitButton(form) },
+	});
+}
+
+const hasFileInput = (block: Block): boolean =>
+	block
+		.getChildren()
+		.some(
+			(child) => (child.isInput() && child.getEffectiveAttribute("type") === "file") || hasFileInput(child),
+		);
+
+function warnFileInput(form: Block) {
+	toast.warning(__("A form on this page has a file input"), {
+		id: "form-file-input",
+		description: __("Submissions don't carry files, so whatever visitors upload is lost."),
+		duration: Infinity,
+		action: { label: __("Select form"), onClick: () => useCanvasStore().selectBlock(form, null, true, true) },
 	});
 }
 
