@@ -103,11 +103,16 @@ export function useCanvasDropZone(
 
 	const findDropTarget = (ev: DragEvent) => {
 		if (canvasStore.dropTarget.x === ev.x && canvasStore.dropTarget.y === ev.y) return {};
-		let parentBlock = getInitialParentBlock(ev);
+		const targetBlock = getInitialParentBlock(ev);
+		let parentBlock = targetBlock;
 		let layoutDirection = "column" as LayoutDirection;
 		let index = parentBlock?.children.length || 0;
 
 		while (parentBlock && !parentBlock.canHaveChildren()) {
+			parentBlock = parentBlock.getParentBlock();
+		}
+		// aimed at a field or its text, a drop lands beside the label they sit in, which holds one field
+		if (parentBlock !== targetBlock && parentBlock?.isFieldLabel()) {
 			parentBlock = parentBlock.getParentBlock();
 		}
 
