@@ -1,3 +1,4 @@
+import type Block from "@/block";
 import InlineInput from "@/components/Controls/InlineInput.vue";
 import OptionToggle from "@/components/Controls/OptionToggle.vue";
 import SelectOptionsInput from "@/components/Controls/SelectOptionsInput.vue";
@@ -6,6 +7,14 @@ import { __ } from "@/translation";
 
 // boolean attributes are on whenever present, whatever their value ("", "true", "required")
 const hasAttribute = (attribute: string) => blockController.getEffectiveAttribute(attribute) != null;
+
+// an aria-label that repeated the placeholder, as in the templates, would keep naming the field by its old text
+const setPlaceholder = (block: Block, placeholder: string) => {
+	if (block.getEffectiveAttribute("aria-label") === block.getEffectiveAttribute("placeholder")) {
+		block.setEffectiveAttribute("aria-label", placeholder || undefined);
+	}
+	block.setEffectiveAttribute("placeholder", placeholder);
+};
 
 const inputOptionsSectionProperties = [
 	{
@@ -66,7 +75,8 @@ const inputOptionsSectionProperties = [
 		searchKeyWords:
 			"Placeholder, Input, PlaceholderText, Placeholder Text, form, input, text, number, email, password, date, time, search, tel, url, color, tag",
 		events: {
-			"update:modelValue": (val: string) => blockController.setEffectiveAttribute("placeholder", val),
+			"update:modelValue": (val: string) =>
+				blockController.getSelectedBlocks().forEach((block) => setPlaceholder(block, val)),
 		},
 		condition: () => !blockController.isSelect() && !blockController.isCheckable(),
 	},
