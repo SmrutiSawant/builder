@@ -382,7 +382,11 @@ class Block implements BlockOptions {
 			}
 		}
 		let description = this.blockName || this.originalElement || this.getElement() || "";
-		if (this.getTextContent() && !this.blockName) {
+		// fields of one kind look alike in the layers, so they're told apart by the name they submit under
+		const fieldName = this.getSubmittedName();
+		if (fieldName) {
+			description += " | " + fieldName;
+		} else if (this.getTextContent() && !this.blockName) {
 			description += " | " + this.getTextContent();
 		} else if (this.isInput() && this.getEffectiveAttribute("type") && !this.blockName) {
 			description += " | " + this.getEffectiveAttribute("type");
@@ -454,6 +458,17 @@ class Block implements BlockOptions {
 	}
 	isInFormField(): boolean {
 		return this.isFormField() || this.isFieldLabel() || Boolean(this.getParentBlock()?.isInFormField());
+	}
+	// a field's name, or the one name submitted from inside a label or radio group
+	getSubmittedName(): string {
+		if (this.isInput() || this.isSelect()) return String(this.getEffectiveAttribute("name") || "");
+		if (this.getElement() !== "label" && !this.isRadioGroup()) return "";
+		const names = new Set(
+			this.getChildren()
+				.map((child) => child.getSubmittedName())
+				.filter(Boolean),
+		);
+		return names.size === 1 ? [...names][0] : "";
 	}
 	getRadios(): Block[] {
 		return this.getChildren().flatMap((child) => (child.isRadio() ? [child] : child.getRadios()));
