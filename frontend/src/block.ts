@@ -13,6 +13,7 @@ import {
 	cssUrl,
 	dataURLFileName,
 	dataURLtoFile,
+	escapeHtml,
 	generateId,
 	getBlockCopy,
 	getBlockInstance,
@@ -470,6 +471,43 @@ class Block implements BlockOptions {
 			if (newNames.has(name)) radio.setEffectiveAttribute("name", newNames.get(name));
 		});
 	}
+	getOptions() {
+		return this.getChildren().filter((child) => child.getElement() === "option");
+	}
+	getOptionLabels() {
+		return this.getOptions().map((option) => option.getTextContent());
+	}
+	// renaming keeps an option's attributes, so a placeholder (empty value) stays one; an option
+	// without a value attribute submits its label, so the two stay in step
+	// labels are plain text but publish as HTML, so they are escaped or "&copy;" would become "©"
+	renameOption(index: number, label: string) {
+		this.getOptions()[index]?.setInnerHTML(escapeHtml(label));
+	}
+	removeOption(index: number) {
+		const option = this.getOptions()[index];
+		if (option) this.removeChild(option);
+	}
+	// before the option at index, or last
+	addOption(label: string, index?: number) {
+		const before = index === undefined ? undefined : this.getOptions()[index];
+		this.addChild(
+			{ element: "option", innerHTML: escapeHtml(label) },
+			before ? this.getChildIndex(before) : null,
+			false,
+		);
+	}
+	// the option shown before the visitor picks one, like the template's placeholder
+	getSelectedOptionIndex() {
+		return Math.max(
+			0,
+			this.getOptions().findIndex((option) => option.getEffectiveAttribute("selected") != null),
+		);
+	}
+	setSelectedOption(index: number) {
+		this.getOptions().forEach((option, i) =>
+			option.setEffectiveAttribute("selected", i === index ? "" : undefined),
+		);
+	}
 	setStyle(style: styleProperty, value: StyleValue) {
 		const canvasStore = useCanvasStore();
 		let styleObj = this.baseStyles;
@@ -499,7 +537,7 @@ class Block implements BlockOptions {
 		const activeState = this.activeState?.split(":")[0];
 		return (activeState ? `${activeState}:${String(style)}` : style) as styleProperty;
 	}
-	setAttribute(attribute: string, value: string | undefined) {
+	setAttribute(attribute: string, value: string | null | undefined) {
 		this.attributes[attribute] = value;
 	}
 	removeAttribute(attribute: string) {
@@ -834,6 +872,9 @@ class Block implements BlockOptions {
 			this.isImage() ||
 			this.isSVG() ||
 			this.isInput() ||
+			// a select holds only its options, which its Options property adds; a drop there vanishes from the canvas
+			this.isSelect() ||
+			this.getElement() === "option" ||
 			this.isVideo() ||
 			// a label wrapping a field takes more blocks, like helper text, the way a link does
 			(this.isText() && !this.isLink() && !(this.getElement() === "label" && this.hasChildren())) ||

@@ -1,5 +1,6 @@
 import InlineInput from "@/components/Controls/InlineInput.vue";
 import OptionToggle from "@/components/Controls/OptionToggle.vue";
+import SelectOptionsInput from "@/components/Controls/SelectOptionsInput.vue";
 import blockController from "@/utils/blockController";
 import { __ } from "@/translation";
 
@@ -79,6 +80,48 @@ const inputOptionsSectionProperties = [
 		},
 		// a radio is required with its whole group, which has its own toggle
 		condition: () => !blockController.isRadio(),
+	},
+	{
+		component: SelectOptionsInput,
+		getProps: () => {
+			const select = blockController.getFirstSelectedBlock();
+			// a component update rebuilds an instance's options from the component, keeping only renames
+			const inComponent = select.isExtendedFromComponent();
+			return {
+				label: __("Options"),
+				options: select.getOptionLabels(),
+				renameOnly: inComponent,
+				description: inComponent ? __("Add or remove options in the component, with Edit Component.") : "",
+			};
+		},
+		searchKeyWords: "Options, Choices, Items, Select, Dropdown, Placeholder",
+		events: {
+			rename: (index: number, label: string) =>
+				blockController.getFirstSelectedBlock().renameOption(index, label),
+			remove: (index: number) => blockController.getFirstSelectedBlock().removeOption(index),
+			add: (label: string, index?: number) => blockController.getFirstSelectedBlock().addOption(label, index),
+		},
+		// each select has its own options, so they are edited one select at a time
+		condition: () => blockController.isSelect() && !blockController.multipleBlocksSelected(),
+	},
+	{
+		component: InlineInput,
+		getProps: () => {
+			const select = blockController.getFirstSelectedBlock();
+			return {
+				label: __("Default"),
+				type: "select",
+				options: select.getOptionLabels().map((label, index) => ({ label, value: String(index) })),
+				modelValue: String(select.getSelectedOptionIndex()),
+				description: __("The option shown before the visitor picks one."),
+			};
+		},
+		searchKeyWords: "Default, Default Value, Selected, Initial, Option, Select, Dropdown, Placeholder",
+		events: {
+			"update:modelValue": (index: string) =>
+				blockController.getFirstSelectedBlock().setSelectedOption(Number(index)),
+		},
+		condition: () => blockController.isSelect() && !blockController.multipleBlocksSelected(),
 	},
 	// Radio button and checkbox specific properties
 	{

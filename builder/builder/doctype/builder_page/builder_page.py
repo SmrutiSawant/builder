@@ -1475,7 +1475,7 @@ def set_dynamic_content_placeholders(block: dict, data_key: dict | None = None):
 				current_value = custom_attributes.get(property_name, "") or ""
 				custom_attributes[property_name] = build_placeholder(keys, current_value, keep_empty=True)
 			else:
-				current_value = attributes.get(property_name, "")
+				current_value = attributes.get(property_name) or ""
 				attributes[property_name] = build_placeholder(keys, current_value)
 
 		elif value_type == "style":
