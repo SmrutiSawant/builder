@@ -101,8 +101,14 @@ const blockController = {
 	isSelect: () => {
 		return blockController.isBlockSelected() && blockController.getFirstSelectedBlock().isSelect();
 	},
-	isCheckbox: () => {
-		return blockController.isBlockSelected() && blockController.getFirstSelectedBlock().isCheckbox();
+	isCheckable: () => {
+		return blockController.isBlockSelected() && blockController.getFirstSelectedBlock().isCheckable();
+	},
+	isRadio: () => {
+		return blockController.isBlockSelected() && blockController.getFirstSelectedBlock().isRadio();
+	},
+	isRadioGroup: () => {
+		return blockController.isBlockSelected() && blockController.getFirstSelectedBlock().isRadioGroup();
 	},
 	getAttribute: (attribute: string) => {
 		let attributeValue = "__initial__" as StyleValue;
@@ -140,6 +146,17 @@ const blockController = {
 		canvasStore.activeCanvas?.selectedBlocks.forEach((block) => {
 			block.setEffectiveAttribute(attribute, value);
 		});
+	},
+	getSharedValue: <T>(getValue: (block: Block) => T) => {
+		let value: T | "__initial__" | "Mixed" = "__initial__";
+		canvasStore.activeCanvas?.selectedBlocks.forEach((block) => {
+			if (value === "__initial__") {
+				value = getValue(block);
+			} else if (value !== getValue(block)) {
+				value = "Mixed";
+			}
+		});
+		return value;
 	},
 	getKeyValue: (key: "element" | "innerHTML" | "visibilityCondition") => {
 		if (key !== "visibilityCondition") {
